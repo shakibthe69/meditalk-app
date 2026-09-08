@@ -2,12 +2,14 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
+const BACKEND_PORT = 8080;
+
 export const getApiBaseUrl = (): string => {
   // 1. If running in a Web browser (Desktop or Mobile Browser)
   if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.hostname) {
     const host = window.location.hostname;
     // e.g. "192.168.0.4" or "localhost"
-    return `http://${host}:8080`;
+    return `http://${host}:${BACKEND_PORT}`;
   }
 
   // 2. If running inside Expo Go / React Native on Android or iOS
@@ -19,12 +21,12 @@ export const getApiBaseUrl = (): string => {
   if (hostUri) {
     const ip = hostUri.split(':')[0];
     if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
-      return `http://${ip}:8080`;
+      return `http://${ip}:${BACKEND_PORT}`;
     }
   }
 
   // 3. Fallback LAN IP of your backend server
-  return 'http://192.168.0.4:8080';
+  return `http://192.168.0.4:${BACKEND_PORT}`;
 };
 
 export const apiClient = axios.create({
