@@ -30,6 +30,8 @@ import {
   CheckCircle2,
 } from 'lucide-react-native';
 
+const DEFAULT_EMERGENCY_CONTACT = '01701660169';
+
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
@@ -128,7 +130,9 @@ export default function ProfileScreen() {
               <Phone size={14} color={palette.slate400} />
               <View>
                 <Text style={styles.vitalLabel}>Emergency Contact</Text>
-                <Text style={styles.vitalValue}>{user?.emergencyContactPhone || '+1 (555) 876-5432'}</Text>
+                <Text style={styles.vitalValue}>
+                  {user?.emergencyContactPhone || DEFAULT_EMERGENCY_CONTACT}
+                </Text>
               </View>
             </View>
           </View>
