@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Modal,
   View,
@@ -9,10 +9,11 @@ import {
   Alert,
 } from 'react-native';
 import { palette, typography, spacing, borderRadius } from '../../theme';
-import { Button, Input, Card } from '../common';
-import { useMedicineStore } from '../../store';
+import { Button, Input } from '../common';
+import { useMedicineStore, useSettingsStore } from '../../store';
 import { FoodInstruction, DoseFrequency } from '../../types';
-import { X, Pill, Clock, Calendar } from 'lucide-react-native';
+import { voiceService } from '../../services/voice';
+import { X, Pill, Languages, Volume2 } from 'lucide-react-native';
 
 interface AddMedicineModalProps {
   visible: boolean;
@@ -27,7 +28,8 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
   onSaved,
   onSuccess,
 }) => {
-  const { addMedicine } = useMedicineStore();
+  const { addMedicine, fetchTodayLogs, fetchMedicines } = useMedicineStore();
+  const { language, t } = useSettingsStore();
 
   const [name, setName] = useState('');
   const [genericName, setGenericName] = useState('');
@@ -40,19 +42,38 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
   const [nightTime, setNightTime] = useState('10:00 PM');
   const [isSaving, setIsSaving] = useState(false);
 
+  useEffect(() => {
+    if (visible) {
+      if (language === 'bn') {
+        voiceService.speak('নতুন ওষুধ ও সময়সূচি যোগ করার ফর্ম খোলা হয়েছে।', 'bn');
+      } else {
+        voiceService.speak('Add new medicine form opened.', 'en');
+      }
+    }
+  }, [visible]);
+
   const handleSave = async () => {
     if (!name.trim() || !dose.trim()) {
-      Alert.alert('Validation Error', 'Medicine name and dose are required.');
+      Alert.alert(
+        language === 'bn' ? 'তথ্য প্রয়োজন' : 'Validation Error',
+        language === 'bn' ? 'ওষুধের নাম এবং মাত্রা আবশ্যক।' : 'Medicine name and dose are required.'
+      );
       return;
     }
 
     setIsSaving(true);
     try {
-      const schedules = [
+      const schedules: Array<{
+        time: string;
+        label: 'MORNING' | 'AFTERNOON' | 'EVENING' | 'NIGHT' | 'CUSTOM';
+        dosageAmount: string;
+        foodInstruction: any;
+        isEnabled: boolean;
+      }> = [
         {
           time: morningTime,
-          label: 'MORNING' as const,
-          dosageAmount: '1 Tablet',
+          label: 'MORNING',
+          dosageAmount: `1 ${dose.toLowerCase().includes('ml') ? 'Spoon' : 'Tablet'}`,
           foodInstruction,
           isEnabled: true,
         },
@@ -62,45 +83,74 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
         schedules.push({
           time: nightTime,
           label: 'NIGHT' as const,
-          dosageAmount: '1 Tablet',
+          dosageAmount: `1 ${dose.toLowerCase().includes('ml') ? 'Spoon' : 'Tablet'}`,
+          foodInstruction,
+          isEnabled: true,
+        });
+      }
+
+      if (frequency === 'THRICE_DAILY') {
+        schedules.push({
+          time: '02:00 PM',
+          label: 'AFTERNOON' as const,
+          dosageAmount: `1 ${dose.toLowerCase().includes('ml') ? 'Spoon' : 'Tablet'}`,
           foodInstruction,
           isEnabled: true,
         });
       }
 
       await addMedicine({
-        name,
-        genericName,
-        dose,
-        form: 'TABLET',
+        name: name.trim(),
+        genericName: genericName.trim() || undefined,
+        dose: dose.trim(),
+        form: dose.toLowerCase().includes('ml') ? 'SYRUP' : dose.toLowerCase().includes('cap') ? 'CAPSULE' : 'TABLET',
         frequency,
         foodInstruction,
         startDate: new Date().toISOString().split('T')[0],
         durationDays: parseInt(durationDays, 10) || 10,
-        instructions: instructions || `${foodInstruction.replace('_', ' ')} for ${durationDays} days`,
+        instructions: instructions.trim() || `${foodInstruction.replace('_', ' ')} for ${durationDays} days`,
         isActive: true,
         schedules: schedules as any,
       });
 
-      Alert.alert('Success', 'Medicine and daily reminder schedules created!');
+      await Promise.all([fetchMedicines(), fetchTodayLogs()]);
+
+      if (language === 'bn') {
+        voiceService.speak(`${name} ওষুধ ডাটাবেজে যুক্ত হয়েছে এবং দৈনিক রিমাইন্ডার সেট হয়েছে।`, 'bn');
+      } else {
+        voiceService.speak(`${name} added to database and reminders scheduled.`, 'en');
+      }
+
+      Alert.alert(
+        language === 'bn' ? 'সফল' : 'Success',
+        language === 'bn'
+          ? 'নতুন ওষুধ ডাটাবেজে সংরক্ষিত হয়েছে এবং আজকের সময়সূচিতে যুক্ত হয়েছে।'
+          : 'Medicine and daily reminder schedules created in database!'
+      );
+
       (onSaved || onSuccess)?.();
       onClose();
+
       // Reset
       setName('');
       setGenericName('');
       setInstructions('');
     } catch (e) {
-      Alert.alert('Error', 'Failed to save medication.');
+      console.warn('Failed to save medicine:', e);
+      Alert.alert(
+        language === 'bn' ? 'ব্যর্থ' : 'Error',
+        language === 'bn' ? 'ওষুধ সংরক্ষণ করা সম্ভব হয়নি।' : 'Failed to save medication.'
+      );
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Add New Medicine</Text>
+          <Text style={styles.headerTitle}>{language === 'bn' ? 'নতুন ওষুধ যোগ করুন' : 'Add New Medicine'}</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
             <X size={20} color={palette.slate600} />
           </TouchableOpacity>
@@ -108,30 +158,30 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Input
-            label="Medicine Brand Name *"
-            placeholder="e.g. Napa, Omeprazole, Lipitor"
+            label={language === 'bn' ? 'ওষুধের ব্র্যান্ড নাম *' : 'Medicine Brand Name *'}
+            placeholder="e.g. Napa, Seclo, Maxpro, Rosuva"
             value={name}
             onChangeText={setName}
-            leftIcon={<Pill size={18} color={palette.slate400} />}
+            leftIcon={<Pill size={18} color={palette.teal700} />}
           />
 
           <Input
-            label="Generic / Molecule Name"
-            placeholder="e.g. Paracetamol, Omeprazole Magnesium"
+            label={language === 'bn' ? 'জেনেরিক / উপাদান নাম' : 'Generic / Molecule Name'}
+            placeholder="e.g. Paracetamol, Omeprazole, Rosuvastatin"
             value={genericName}
             onChangeText={setGenericName}
           />
 
           <View style={styles.row}>
             <Input
-              label="Dosage *"
-              placeholder="e.g. 500mg, 20mg"
+              label={language === 'bn' ? 'মাত্রা (Dose) *' : 'Dosage *'}
+              placeholder="e.g. 500mg, 20mg, 10ml"
               value={dose}
               onChangeText={setDose}
               containerStyle={{ flex: 1 }}
             />
             <Input
-              label="Duration (Days)"
+              label={language === 'bn' ? 'মেয়াদ (দিন)' : 'Duration (Days)'}
               placeholder="10"
               value={durationDays}
               onChangeText={setDurationDays}
@@ -141,13 +191,13 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
           </View>
 
           {/* Food Instruction Selector */}
-          <Text style={styles.sectionLabel}>Food Timing</Text>
+          <Text style={styles.sectionLabel}>{t.mealInstruction}</Text>
           <View style={styles.chipsRow}>
             {[
-              { key: 'BEFORE_MEAL', label: 'Before Meal' },
-              { key: 'AFTER_MEAL', label: 'After Meal' },
-              { key: 'WITH_MEAL', label: 'With Meal' },
-              { key: 'EMPTY_STOMACH', label: 'Empty Stomach' },
+              { key: 'AFTER_MEAL', label: t.afterMeal },
+              { key: 'BEFORE_MEAL', label: t.beforeMeal },
+              { key: 'EMPTY_STOMACH', label: t.emptyStomach },
+              { key: 'WITH_MEAL', label: t.withMeal },
             ].map((item) => (
               <TouchableOpacity
                 key={item.key}
@@ -162,12 +212,12 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
           </View>
 
           {/* Frequency Selector */}
-          <Text style={styles.sectionLabel}>Frequency</Text>
+          <Text style={styles.sectionLabel}>{language === 'bn' ? 'সেবনের পৌনঃপুনিকতা' : 'Frequency'}</Text>
           <View style={styles.chipsRow}>
             {[
-              { key: 'ONCE_DAILY', label: '1x Daily' },
-              { key: 'TWICE_DAILY', label: '2x Daily (Morning & Night)' },
-              { key: 'THRICE_DAILY', label: '3x Daily' },
+              { key: 'ONCE_DAILY', label: language === 'bn' ? 'দিনে ১ বার (1x)' : '1x Daily' },
+              { key: 'TWICE_DAILY', label: language === 'bn' ? 'দিনে ২ বার (সকাল ও রাত)' : '2x Daily (Morning & Night)' },
+              { key: 'THRICE_DAILY', label: language === 'bn' ? 'দিনে ৩ বার (সকাল, দুপুর ও রাত)' : '3x Daily' },
             ].map((item) => (
               <TouchableOpacity
                 key={item.key}
@@ -182,14 +232,14 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
           </View>
 
           <Input
-            label="Special Instructions"
-            placeholder="e.g. Take with a full glass of water at bedtime"
+            label={language === 'bn' ? 'বিশেষ নির্দেশাবলি' : 'Special Instructions'}
+            placeholder="e.g. ভরা পেটে প্রচুর পানি দিয়ে সেবন করুন"
             value={instructions}
             onChangeText={setInstructions}
           />
 
           <Button
-            title="Save Medicine & Schedule"
+            title={language === 'bn' ? 'ওষুধ সংরক্ষণ ও শিডিউল সেট করুন' : 'Save Medicine & Schedule'}
             onPress={handleSave}
             loading={isSaving}
             size="lg"

@@ -1,10 +1,13 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { palette, typography, spacing } from '../../src/theme';
-import { Home, Pill, Clock, User } from 'lucide-react-native';
+import { palette, typography } from '../../src/theme';
+import { useSettingsStore } from '../../src/store/useSettingsStore';
+import { Home, Pill, Clock, User, BookOpen } from 'lucide-react-native';
 import { Platform } from 'react-native';
 
 export default function TabsLayout() {
+  const { t } = useSettingsStore();
+
   return (
     <Tabs
       screenOptions={{
@@ -33,28 +36,35 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: t.tabHome,
           tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="medicines"
         options={{
-          title: 'Medicines',
+          title: t.tabMedicines,
           tabBarIcon: ({ color, size }) => <Pill size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="guide"
+        options={{
+          title: t.tabGuide,
+          tabBarIcon: ({ color, size }) => <BookOpen size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          title: 'History',
+          title: t.tabHistory,
           tabBarIcon: ({ color, size }) => <Clock size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t.tabProfile,
           tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
         }}
       />

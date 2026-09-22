@@ -5,7 +5,7 @@ import { LogStatus } from '../../types';
 
 interface BadgeProps {
   label: string;
-  status?: LogStatus | 'PRIMARY' | 'DEFAULT' | 'INFO';
+  status?: LogStatus | 'PRIMARY' | 'DEFAULT' | 'INFO' | 'SUCCESS' | 'WARNING' | 'DANGER';
   size?: 'sm' | 'md';
   style?: ViewStyle;
 }
@@ -19,18 +19,21 @@ export const Badge: React.FC<BadgeProps> = ({
   const getColors = (): { bg: string; text: string; border: string } => {
     switch (status) {
       case 'TAKEN':
+      case 'SUCCESS':
         return {
           bg: palette.success50,
           text: palette.success600,
           border: palette.success100,
         };
       case 'SKIPPED':
+      case 'WARNING':
         return {
           bg: palette.warning50,
           text: palette.warning600,
           border: palette.warning100,
         };
       case 'MISSED':
+      case 'DANGER':
         return {
           bg: palette.danger50,
           text: palette.danger600,

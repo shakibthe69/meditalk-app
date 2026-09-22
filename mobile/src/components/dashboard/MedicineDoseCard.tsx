@@ -4,7 +4,9 @@ import { Card } from '../common/Card';
 import { Badge } from '../common/Badge';
 import { palette, typography, borderRadius, spacing } from '../../theme';
 import { MedicineLog } from '../../types';
-import { Check, X, Clock, Utensils } from 'lucide-react-native';
+import { useSettingsStore } from '../../store/useSettingsStore';
+import { voiceService } from '../../services/voice';
+import { Check, X, Clock, Utensils, Volume2 } from 'lucide-react-native';
 
 interface MedicineDoseCardProps {
   log: MedicineLog;
@@ -17,6 +19,8 @@ export const MedicineDoseCard: React.FC<MedicineDoseCardProps> = ({
   onTake,
   onSkip,
 }) => {
+  const { language, t } = useSettingsStore();
+
   const isTaken = log.status === 'TAKEN';
   const isSkipped = log.status === 'SKIPPED';
   const isMissed = log.status === 'MISSED';
@@ -25,16 +29,41 @@ export const MedicineDoseCard: React.FC<MedicineDoseCardProps> = ({
   const formatFoodInstruction = (inst?: string) => {
     switch (inst) {
       case 'BEFORE_MEAL':
-        return 'Before breakfast / meal';
+        return t.beforeMeal;
       case 'AFTER_MEAL':
-        return 'After lunch / meal';
+        return t.afterMeal;
       case 'WITH_MEAL':
-        return 'With meal';
+        return t.withMeal;
       case 'EMPTY_STOMACH':
-        return 'On empty stomach';
+        return t.emptyStomach;
       default:
-        return 'No food restriction';
+        return language === 'bn' ? 'সাধারণ নিয়ম' : 'As directed';
     }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'TAKEN':
+        return t.taken;
+      case 'SKIPPED':
+        return t.skipped;
+      case 'MISSED':
+        return t.missed;
+      case 'PENDING':
+        return t.pending;
+      default:
+        return status;
+    }
+  };
+
+  const handleSpeakDose = () => {
+    const food = formatFoodInstruction(log.foodInstruction);
+    const speechText =
+      language === 'bn'
+        ? `ওষুধের নাম: ${log.medicineName}, সময়: ${log.scheduledTime}, মাত্রা: ${log.dose}, খাওয়ার নিয়ম: ${food}।`
+        : `Medicine: ${log.medicineName}, Scheduled for ${log.scheduledTime}, Dose: ${log.dose}, Instruction: ${food}.`;
+
+    voiceService.speak(speechText, language);
   };
 
   return (
@@ -52,16 +81,28 @@ export const MedicineDoseCard: React.FC<MedicineDoseCardProps> = ({
           <Text style={styles.timeText}>{log.scheduledTime}</Text>
         </View>
 
-        <Badge
-          label={log.status}
-          status={log.status}
-          size="sm"
-        />
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={styles.speakerBtn}
+            onPress={handleSpeakDose}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Volume2 size={16} color={palette.teal700} />
+          </TouchableOpacity>
+
+          <Badge
+            label={getStatusLabel(log.status)}
+            status={log.status}
+            size="sm"
+          />
+        </View>
       </View>
 
       <View style={styles.mainInfo}>
         <Text style={styles.medicineName}>{log.medicineName}</Text>
-        <Text style={styles.dosageText}>Dosage: {log.dose}</Text>
+        <Text style={styles.dosageText}>
+          {language === 'bn' ? 'মাত্রা' : 'Dosage'}: {log.dose}
+        </Text>
 
         <View style={styles.foodRow}>
           <Utensils size={14} color={palette.teal700} />
@@ -77,7 +118,7 @@ export const MedicineDoseCard: React.FC<MedicineDoseCardProps> = ({
             onPress={() => onSkip(log.id)}
           >
             <X size={16} color={palette.slate600} />
-            <Text style={styles.skipButtonText}>Skip</Text>
+            <Text style={styles.skipButtonText}>{t.markAsSkipped}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -86,20 +127,24 @@ export const MedicineDoseCard: React.FC<MedicineDoseCardProps> = ({
             onPress={() => onTake(log.id)}
           >
             <Check size={16} color={palette.white} />
-            <Text style={styles.takeButtonText}>Take Medicine</Text>
+            <Text style={styles.takeButtonText}>{t.markAsTaken}</Text>
           </TouchableOpacity>
         </View>
       ) : isTaken ? (
         <View style={styles.completedRow}>
           <Check size={16} color={palette.success600} />
           <Text style={styles.completedText}>
-            Taken at {log.takenTime || 'Scheduled time'}
+            {language === 'bn'
+              ? `${log.takenTime || 'নির্ধারিত সময়ে'} গ্রহণ সম্পন্ন হয়েছে`
+              : `Taken at ${log.takenTime || 'Scheduled time'}`}
           </Text>
         </View>
       ) : isSkipped ? (
         <View style={styles.completedRow}>
           <X size={16} color={palette.warning600} />
-          <Text style={styles.skippedText}>Dose skipped</Text>
+          <Text style={styles.skippedText}>
+            {language === 'bn' ? 'ওষুধ বাদ দেওয়া হয়েছে' : 'Dose skipped'}
+          </Text>
         </View>
       ) : null}
     </Card>
@@ -140,6 +185,16 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     fontWeight: '700',
     color: palette.slate800,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  speakerBtn: {
+    padding: 4,
+    backgroundColor: palette.teal50,
+    borderRadius: borderRadius.full,
   },
   mainInfo: {
     marginBottom: spacing.md,

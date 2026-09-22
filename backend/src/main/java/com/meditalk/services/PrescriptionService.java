@@ -11,7 +11,9 @@ import com.meditalk.entities.MedicineSchedule;
 import com.meditalk.entities.Prescription;
 import com.meditalk.entities.User;
 import com.meditalk.exceptions.ResourceNotFoundException;
+import com.meditalk.entities.MedicineLog;
 import com.meditalk.repositories.DoctorRepository;
+import com.meditalk.repositories.MedicineLogRepository;
 import com.meditalk.repositories.MedicineRepository;
 import com.meditalk.repositories.MedicineScheduleRepository;
 import com.meditalk.repositories.PrescriptionRepository;
@@ -32,19 +34,22 @@ public class PrescriptionService {
     private final MedicineRepository medicineRepository;
     private final MedicineScheduleRepository scheduleRepository;
     private final MedicineService medicineService;
+    private final MedicineLogRepository medicineLogRepository;
 
     public PrescriptionService(PrescriptionRepository prescriptionRepository,
                                DoctorRepository doctorRepository,
                                UserRepository userRepository,
                                MedicineRepository medicineRepository,
                                MedicineScheduleRepository scheduleRepository,
-                               MedicineService medicineService) {
+                               MedicineService medicineService,
+                               MedicineLogRepository medicineLogRepository) {
         this.prescriptionRepository = prescriptionRepository;
         this.doctorRepository = doctorRepository;
         this.userRepository = userRepository;
         this.medicineRepository = medicineRepository;
         this.scheduleRepository = scheduleRepository;
         this.medicineService = medicineService;
+        this.medicineLogRepository = medicineLogRepository;
     }
 
     public List<PrescriptionResponse> getPrescriptions(Long userId) {
@@ -103,6 +108,7 @@ public class PrescriptionService {
                         .build();
 
                 Medicine savedMed = medicineRepository.save(medicine);
+                List<MedicineSchedule> createdSchedules = new ArrayList<>();
 
                 if (medReq.getSchedules() != null && !medReq.getSchedules().isEmpty()) {
                     for (MedicineScheduleDto schDto : medReq.getSchedules()) {
@@ -116,6 +122,7 @@ public class PrescriptionService {
                                 .build();
                         scheduleRepository.save(schedule);
                         savedMed.getSchedules().add(schedule);
+                        createdSchedules.add(schedule);
                     }
                 } else {
                     MedicineSchedule defaultSchedule = MedicineSchedule.builder()
@@ -128,6 +135,24 @@ public class PrescriptionService {
                             .build();
                     scheduleRepository.save(defaultSchedule);
                     savedMed.getSchedules().add(defaultSchedule);
+                    createdSchedules.add(defaultSchedule);
+                }
+
+                // Auto-seed today's logs for immediate dashboard schedule display and speech notifications
+                for (MedicineSchedule s : createdSchedules) {
+                    if (s.getIsEnabled()) {
+                        MedicineLog logItem = MedicineLog.builder()
+                                .user(user)
+                                .medicine(savedMed)
+                                .scheduleId(s.getId())
+                                .medicineName(savedMed.getName())
+                                .dose(s.getDosageAmount())
+                                .scheduledTime(s.getTime())
+                                .status("PENDING")
+                                .foodInstruction(s.getFoodInstruction())
+                                .build();
+                        medicineLogRepository.save(logItem);
+                    }
                 }
 
                 savedPrescription.getMedicines().add(savedMed);

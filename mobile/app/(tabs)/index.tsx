@@ -10,8 +10,9 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuthStore, useMedicineStore } from '../../src/store';
+import { useAuthStore, useMedicineStore, useSettingsStore } from '../../src/store';
 import { palette, typography, spacing, borderRadius, shadows } from '../../src/theme';
+import { voiceService } from '../../src/services/voice';
 import {
   Card,
   Badge,
@@ -23,7 +24,6 @@ import {
   ExportPdfModal,
 } from '../../src/components';
 import {
-  Bell,
   Plus,
   Camera,
   FileText,
@@ -32,12 +32,17 @@ import {
   Calendar,
   Sparkles,
   Download,
+  Volume2,
+  VolumeX,
+  Languages,
+  BookOpen,
 } from 'lucide-react-native';
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
   const { todayLogs, adherence, markDose, fetchMedicines, fetchTodayLogs, fetchAdherence, isLoading } = useMedicineStore();
+  const { language, voiceEnabled, t, toggleLanguage, toggleVoice } = useSettingsStore();
 
   const [showAddMedModal, setShowAddMedModal] = useState(false);
   const [showScanRxModal, setShowScanRxModal] = useState(false);
@@ -67,7 +72,7 @@ export default function DashboardScreen() {
     setRefreshing(false);
   };
 
-  const todayDateFormatted = new Date().toLocaleDateString('en-US', {
+  const todayDateFormatted = new Date().toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US', {
     weekday: 'long',
     month: 'short',
     day: 'numeric',
@@ -78,33 +83,78 @@ export default function DashboardScreen() {
 
   const handleTake = (id: string) => {
     markDose(id, 'TAKEN');
+    voiceService.speakStep('TAKEN', language);
   };
 
   const handleSkip = (id: string) => {
     markDose(id, 'SKIPPED');
+    voiceService.speakStep('SKIPPED', language);
   };
 
-  const userName = user?.fullName?.split(' ')[0] || user?.name?.split(' ')[0] || 'Patient';
+  const userName = user?.fullName?.split(' ')[0] || user?.name?.split(' ')[0] || (language === 'bn' ? 'রোগী' : 'Patient');
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Top App Header */}
+      {/* Top App Header with Controls */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Good day, {userName} 👋</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.greeting}>
+            {t.goodDay}, {userName} 👋
+          </Text>
           <View style={styles.dateRow}>
-            <Calendar size={14} color={palette.slate500} />
+            <Calendar size={13} color={palette.slate500} />
             <Text style={styles.dateText}>{todayDateFormatted}</Text>
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.notificationBtn}
-          activeOpacity={0.7}
-          onPress={() => setShowExportPdfModal(true)}
-        >
-          <Download size={20} color={palette.teal700} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          {/* Language Switcher */}
+          <TouchableOpacity
+            style={styles.headerIconBtn}
+            onPress={() => {
+              toggleLanguage();
+              voiceService.speak(
+                language === 'en' ? 'ভাষা বাংলায় পরিবর্তন করা হয়েছে' : 'Language changed to English',
+                language === 'en' ? 'bn' : 'en'
+              );
+            }}
+            activeOpacity={0.7}
+          >
+            <Languages size={15} color={palette.teal700} />
+            <Text style={styles.headerLangText}>{language === 'en' ? 'বাংলা' : 'EN'}</Text>
+          </TouchableOpacity>
+
+          {/* Voice Narration Toggle */}
+          <TouchableOpacity
+            style={[styles.headerIconBtn, !voiceEnabled && styles.headerIconBtnDisabled]}
+            onPress={() => {
+              const nextState = !voiceEnabled;
+              toggleVoice();
+              if (nextState) {
+                voiceService.speak(
+                  language === 'bn' ? 'ভয়েস চালু হয়েছে' : 'Voice enabled',
+                  language
+                );
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            {voiceEnabled ? (
+              <Volume2 size={16} color={palette.teal700} />
+            ) : (
+              <VolumeX size={16} color={palette.slate400} />
+            )}
+          </TouchableOpacity>
+
+          {/* Export PDF Button */}
+          <TouchableOpacity
+            style={[styles.headerIconBtn, { backgroundColor: palette.teal600, borderColor: palette.teal700 }]}
+            activeOpacity={0.7}
+            onPress={() => setShowExportPdfModal(true)}
+          >
+            <Download size={15} color={palette.white} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -121,9 +171,9 @@ export default function DashboardScreen() {
               <Sparkles size={20} color={palette.teal600} />
             </View>
             <View style={styles.upcomingTextContainer}>
-              <Text style={styles.upcomingTitle}>Upcoming Medication</Text>
+              <Text style={styles.upcomingTitle}>{t.upcomingMedication}</Text>
               <Text style={styles.upcomingDetails}>
-                {nextUpcomingDose.medicineName} ({nextUpcomingDose.dose}) at{' '}
+                {nextUpcomingDose.medicineName} ({nextUpcomingDose.dose}) {t.at}{' '}
                 <Text style={{ fontWeight: '700' }}>{nextUpcomingDose.scheduledTime}</Text>
               </Text>
             </View>
@@ -133,8 +183,8 @@ export default function DashboardScreen() {
         {/* Adherence Card */}
         <Card style={styles.adherenceCard}>
           <View style={styles.adherenceHeader}>
-            <Text style={styles.sectionTitle}>Medication Adherence</Text>
-            <Badge label="Active Goal: 90%+" status="PRIMARY" size="sm" />
+            <Text style={styles.sectionTitle}>{t.adherenceTitle}</Text>
+            <Badge label={t.adherenceGoal} status="PRIMARY" size="sm" />
           </View>
           <AdherenceRing stats={adherence} size={105} strokeWidth={9} />
         </Card>
@@ -149,7 +199,7 @@ export default function DashboardScreen() {
             <View style={[styles.quickActionIcon, { backgroundColor: palette.teal50 }]}>
               <Plus size={20} color={palette.teal700} />
             </View>
-            <Text style={styles.quickActionLabel}>Add Med</Text>
+            <Text style={styles.quickActionLabel}>{t.addMed}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -160,7 +210,7 @@ export default function DashboardScreen() {
             <View style={[styles.quickActionIcon, { backgroundColor: palette.blue50 }]}>
               <Camera size={20} color={palette.blue600} />
             </View>
-            <Text style={styles.quickActionLabel}>Scan Rx</Text>
+            <Text style={styles.quickActionLabel}>{t.scanRx}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -171,27 +221,38 @@ export default function DashboardScreen() {
             <View style={[styles.quickActionIcon, { backgroundColor: palette.success50 }]}>
               <FileText size={20} color={palette.success600} />
             </View>
-            <Text style={styles.quickActionLabel}>Add Report</Text>
+            <Text style={styles.quickActionLabel}>{t.addReport}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => router.push('/(tabs)/guide')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: palette.teal50 }]}>
+              <BookOpen size={20} color={palette.teal600} />
+            </View>
+            <Text style={styles.quickActionLabel}>{t.healthGuide}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Today's Medicines Section */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionHeading}>Today's Schedule</Text>
+          <Text style={styles.sectionHeading}>{t.todaySchedule}</Text>
           <TouchableOpacity onPress={() => router.push('/(tabs)/medicines')}>
-            <Text style={styles.seeAllText}>View All</Text>
+            <Text style={styles.seeAllText}>{t.viewAll}</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.medicinesList}>
           {todayLogs.length === 0 ? (
             <Card style={styles.emptyScheduleCard}>
-              <Text style={styles.emptyScheduleText}>No doses scheduled for today.</Text>
+              <Text style={styles.emptyScheduleText}>{t.noDosesToday}</Text>
               <TouchableOpacity
                 style={styles.addDoseBtn}
                 onPress={() => setShowAddMedModal(true)}
               >
-                <Text style={styles.addDoseBtnText}>+ Add Medication</Text>
+                <Text style={styles.addDoseBtnText}>{t.addMedicationBtn}</Text>
               </TouchableOpacity>
             </Card>
           ) : (
@@ -208,7 +269,7 @@ export default function DashboardScreen() {
 
         {/* Recent Prescriptions Preview */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionHeading}>Recent Prescriptions</Text>
+          <Text style={styles.sectionHeading}>{t.recentPrescriptions}</Text>
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/history')}
             style={{ flexDirection: 'row', alignItems: 'center' }}
@@ -224,21 +285,25 @@ export default function DashboardScreen() {
           <Card style={styles.previewCard}>
             <View style={styles.previewRow}>
               <View style={styles.previewLeft}>
-                <Text style={styles.doctorName}>Dr. Rahman, MD</Text>
+                <Text style={styles.doctorName}>Dr. S. M. Rahman, FCPS</Text>
                 <Text style={styles.clinicName}>Apollo Heart & General Clinic</Text>
-                <Text style={styles.diagnosisText}>Diagnosis: Hypertension & Acid Reflux</Text>
+                <Text style={styles.diagnosisText}>
+                  {language === 'bn' ? 'রোগ নির্ণয়: জ্বর ও এসিডিটি' : 'Diagnosis: Seasonal fever & hyperacidity'}
+                </Text>
               </View>
-              <Badge label="3 Meds" status="INFO" size="sm" />
+              <Badge label={language === 'bn' ? '৩টি ওষুধ' : '3 Meds'} status="INFO" size="sm" />
             </View>
             <View style={styles.previewFooter}>
-              <Text style={styles.previewDate}>Prescribed: Sept 5, 2026</Text>
+              <Text style={styles.previewDate}>
+                {language === 'bn' ? 'প্রেসক্রিপশন তারিখ: ৫ সেপ্টেম্বর ২০২৬' : 'Prescribed: Sept 5, 2026'}
+              </Text>
             </View>
           </Card>
         </TouchableOpacity>
 
         {/* Recent Medical Reports Preview */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionHeading}>Recent Lab Reports</Text>
+          <Text style={styles.sectionHeading}>{t.recentReports}</Text>
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/history')}
             style={{ flexDirection: 'row', alignItems: 'center' }}
@@ -256,12 +321,16 @@ export default function DashboardScreen() {
               <View style={styles.previewLeft}>
                 <Text style={styles.doctorName}>Complete Blood Count (CBC)</Text>
                 <Text style={styles.clinicName}>National Diagnostic Laboratory</Text>
-                <Text style={styles.diagnosisText}>All vital markers within normal range</Text>
+                <Text style={styles.diagnosisText}>
+                  {language === 'bn' ? 'সকল প্যারামিটার স্বাভাবিক রয়েছে' : 'All vital markers within normal range'}
+                </Text>
               </View>
-              <Badge label="Verified" status="TAKEN" size="sm" />
+              <Badge label={language === 'bn' ? 'যাচাইকৃত' : 'Verified'} status="TAKEN" size="sm" />
             </View>
             <View style={styles.previewFooter}>
-              <Text style={styles.previewDate}>Date: Sept 6, 2026</Text>
+              <Text style={styles.previewDate}>
+                {language === 'bn' ? 'তারিখ: ৬ সেপ্টেম্বর ২০২৬' : 'Date: Sept 6, 2026'}
+              </Text>
             </View>
           </Card>
         </TouchableOpacity>
@@ -270,8 +339,8 @@ export default function DashboardScreen() {
         <View style={styles.disclaimerContainer}>
           <ShieldAlert size={18} color={palette.slate500} style={styles.disclaimerIcon} />
           <Text style={styles.disclaimerText}>
-            <Text style={{ fontWeight: '700' }}>Healthcare Disclaimer: </Text>
-            Meditalk helps organize your medical records and reminders. It does not replace professional medical advice. Always follow your doctor's official prescription.
+            <Text style={{ fontWeight: '700' }}>{t.disclaimerTitle} </Text>
+            {t.disclaimerText}
           </Text>
         </View>
       </ScrollView>
@@ -319,8 +388,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: palette.slate100,
   },
+  headerLeft: {
+    flex: 1,
+  },
   greeting: {
-    fontSize: typography.sizes.xl,
+    fontSize: typography.sizes.lg + 1,
     fontWeight: '800',
     color: palette.slate900,
   },
@@ -335,15 +407,31 @@ const styles = StyleSheet.create({
     color: palette.slate500,
     fontWeight: '500',
   },
-  notificationBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  headerIconBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 36,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.full,
     backgroundColor: palette.teal50,
     justifyContent: 'center',
-    alignItems: 'center',
     borderWidth: 1,
     borderColor: palette.teal100,
+    gap: 4,
+  },
+  headerIconBtnDisabled: {
+    backgroundColor: palette.slate100,
+    borderColor: palette.slate300,
+  },
+  headerLangText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '700',
+    color: palette.teal800,
   },
   scrollContent: {
     padding: spacing.base,

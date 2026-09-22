@@ -22,8 +22,8 @@ public class MedicineRequest {
     private String frequency = "ONCE_DAILY";
     private String foodInstruction = "AFTER_MEAL";
 
-    @NotNull(message = "Start date is required")
     private LocalDate startDate;
+
 
     private LocalDate endDate;
     private Integer durationDays;

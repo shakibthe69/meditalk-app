@@ -9,9 +9,11 @@ import {
   TextInput,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import { useMedicineStore } from '../../src/store';
-import { palette, typography, spacing, borderRadius, shadows } from '../../src/theme';
+import { useSettingsStore } from '../../src/store/useSettingsStore';
+import { palette, typography, spacing, borderRadius } from '../../src/theme';
 import { Card, Badge, Header, AddMedicineModal } from '../../src/components';
 import {
   Search,
@@ -26,6 +28,7 @@ import {
 } from 'lucide-react-native';
 
 export default function MedicinesScreen() {
+  const { language, t } = useSettingsStore();
   const { medicines, toggleMedicineStatus, deleteMedicine, fetchMedicines, isLoading } = useMedicineStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
@@ -43,24 +46,39 @@ export default function MedicinesScreen() {
   };
 
   const handleDelete = (id: string, name: string) => {
-    Alert.alert(
-      'Remove Medication',
-      `Are you sure you want to remove "${name}" from your active schedule?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => deleteMedicine(id),
-        },
-      ]
-    );
+    const doDelete = async () => {
+      await deleteMedicine(id);
+    };
+
+    if (Platform.OS === 'web') {
+      const ok = window.confirm(
+        language === 'bn'
+          ? `আপনি কি "${name}" ওষুধটি তালিকা ও ডেটাবেস থেকে মুছে ফেলতে চান?`
+          : `Are you sure you want to remove "${name}" from your active schedule and database?`
+      );
+      if (ok) doDelete();
+    } else {
+      Alert.alert(
+        language === 'bn' ? 'ওষুধ মুছুন' : 'Remove Medication',
+        language === 'bn'
+          ? `আপনি কি "${name}" ওষুধটি তালিকা ও ডেটাবেস থেকে মুছে ফেলতে চান?`
+          : `Are you sure you want to remove "${name}" from your active schedule?`,
+        [
+          { text: language === 'bn' ? 'বাতিল' : 'Cancel', style: 'cancel' },
+          {
+            text: language === 'bn' ? 'মুছুন' : 'Remove',
+            style: 'destructive',
+            onPress: doDelete,
+          },
+        ]
+      );
+    }
   };
 
   const filteredMedicines = medicines.filter((med) => {
     const matchesSearch =
       med.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      med.genericName?.toLowerCase().includes(searchQuery.toLowerCase());
+      (med.genericName && med.genericName.toLowerCase().includes(searchQuery.toLowerCase()));
     if (filter === 'ACTIVE') return matchesSearch && med.isActive;
     if (filter === 'INACTIVE') return matchesSearch && !med.isActive;
     return matchesSearch;
@@ -69,13 +87,18 @@ export default function MedicinesScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <Header
-        title="My Medicines"
-        subtitle={`${medicines.length} total recorded medications`}
+        title={t.myMedicines}
+        subtitle={
+          language === 'bn'
+            ? `মোট ${medicines.length} টি সংরক্ষিত ওষুধ`
+            : `${medicines.length} total recorded medications`
+        }
         rightAction={
           <TouchableOpacity
             style={styles.addIconBtn}
             onPress={() => setShowAddModal(true)}
             activeOpacity={0.7}
+            accessibilityLabel="Add Medicine"
           >
             <Plus size={20} color={palette.white} />
           </TouchableOpacity>
@@ -87,7 +110,7 @@ export default function MedicinesScreen() {
         <View style={styles.searchContainer}>
           <Search size={18} color={palette.slate400} style={styles.searchIcon} />
           <TextInput
-            placeholder="Search medicine or generic name..."
+            placeholder={language === 'bn' ? 'ওষুধ বা জেনেরিক নাম খুঁজুন...' : 'Search medicine or generic name...'}
             placeholderTextColor={palette.slate400}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -112,7 +135,11 @@ export default function MedicinesScreen() {
                   filter === item && styles.filterPillTextActive,
                 ]}
               >
-                {item === 'ALL' ? 'All Medications' : item === 'ACTIVE' ? 'Active' : 'Completed'}
+                {item === 'ALL'
+                  ? t.allMedicines
+                  : item === 'ACTIVE'
+                  ? (language === 'bn' ? 'সক্রিয়' : 'Active')
+                  : (language === 'bn' ? 'সম্পন্ন / নিষ্ক্রিয়' : 'Completed')}
               </Text>
             </TouchableOpacity>
           ))}
@@ -129,9 +156,13 @@ export default function MedicinesScreen() {
           {filteredMedicines.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Pill size={48} color={palette.slate300} />
-              <Text style={styles.emptyTitle}>No medications found</Text>
+              <Text style={styles.emptyTitle}>
+                {language === 'bn' ? 'কোন ওষুধ পাওয়া যায়নি' : 'No medications found'}
+              </Text>
               <Text style={styles.emptySubtitle}>
-                Add your active prescriptions or tap below to enter a medicine schedule.
+                {language === 'bn'
+                  ? 'আপনার প্রেসক্রিপশন স্ক্যান করুন অথবা নিচের বাটনে চাপ দিয়ে ওষুধ যোগ করুন।'
+                  : 'Add your active prescriptions or tap below to enter a medicine schedule.'}
               </Text>
               <TouchableOpacity
                 style={styles.emptyActionBtn}
@@ -139,7 +170,9 @@ export default function MedicinesScreen() {
                 activeOpacity={0.8}
               >
                 <Plus size={16} color={palette.white} />
-                <Text style={styles.emptyActionBtnText}>Add Medication</Text>
+                <Text style={styles.emptyActionBtnText}>
+                  {language === 'bn' ? 'ওষুধ যোগ করুন' : 'Add Medication'}
+                </Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -162,7 +195,11 @@ export default function MedicinesScreen() {
                     activeOpacity={0.7}
                   >
                     <Badge
-                      label={med.isActive ? 'Active' : 'Inactive'}
+                      label={
+                        med.isActive
+                          ? (language === 'bn' ? 'সক্রিয়' : 'Active')
+                          : (language === 'bn' ? 'নিষ্ক্রিয়' : 'Inactive')
+                      }
                       status={med.isActive ? 'PRIMARY' : 'DEFAULT'}
                       size="sm"
                     />
@@ -172,12 +209,12 @@ export default function MedicinesScreen() {
                 {/* Details Section */}
                 <View style={styles.detailsGrid}>
                   <View style={styles.detailItem}>
-                    <Text style={styles.detailLabel}>Dosage</Text>
-                    <Text style={styles.detailValue}>{med.dose || '1 tablet'}</Text>
+                    <Text style={styles.detailLabel}>{language === 'bn' ? 'ডোজ' : 'Dosage'}</Text>
+                    <Text style={styles.detailValue}>{med.dose || (language === 'bn' ? '১ ট্যাবলেট' : '1 tablet')}</Text>
                   </View>
 
                   <View style={styles.detailItem}>
-                    <Text style={styles.detailLabel}>Frequency</Text>
+                    <Text style={styles.detailLabel}>{language === 'bn' ? 'ফ্রিকোয়েন্সি' : 'Frequency'}</Text>
                     <Text style={styles.detailValue}>
                       {med.frequency ? med.frequency.replace(/_/g, ' ') : 'DAILY'}
                     </Text>
@@ -189,7 +226,7 @@ export default function MedicinesScreen() {
                   <View style={styles.scheduleRow}>
                     <Clock size={14} color={palette.slate500} />
                     <Text style={styles.scheduleText}>
-                      Schedules:{' '}
+                      {language === 'bn' ? 'সময়সূচি:' : 'Schedules:'}{' '}
                       {med.schedules.map((s) => `${s.time} (${s.dosageAmount || '1 dose'})`).join(', ')}
                     </Text>
                   </View>
@@ -207,13 +244,16 @@ export default function MedicinesScreen() {
                 <View style={styles.cardFooter}>
                   <View style={styles.dateInfo}>
                     <Calendar size={12} color={palette.slate400} />
-                    <Text style={styles.dateText}>Started: {med.startDate || 'Current'}</Text>
+                    <Text style={styles.dateText}>
+                      {language === 'bn' ? 'শুরু:' : 'Started:'} {med.startDate || (language === 'bn' ? 'বর্তমান' : 'Current')}
+                    </Text>
                   </View>
 
                   <TouchableOpacity
                     style={styles.deleteBtn}
                     onPress={() => handleDelete(med.id, med.name)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityLabel="Delete medicine"
                   >
                     <Trash2 size={16} color={palette.danger500} />
                   </TouchableOpacity>

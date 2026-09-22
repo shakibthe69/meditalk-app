@@ -1,9 +1,11 @@
 export interface User {
   id: string;
   fullName: string;
+  name?: string;
   email: string;
   phoneNumber?: string;
   dateOfBirth?: string;
+  gender?: string;
   bloodGroup?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;

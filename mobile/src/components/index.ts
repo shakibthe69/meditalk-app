@@ -9,3 +9,4 @@ export * from './prescriptions/AddPrescriptionModal';
 export * from './medicines/AddMedicineModal';
 export * from './reports/AddReportModal';
 export * from './pdf/ExportPdfModal';
+export * from './guide/DiseaseDetailModal';

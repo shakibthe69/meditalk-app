@@ -1,15 +1,58 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { Medicine, MedicineSchedule } from '../../types';
+import { voiceService } from '../voice';
+import { useSettingsStore } from '../../store/useSettingsStore';
 
-// Configure default notification handler
+// Configure default notification handler with alert, sound, badge
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
       shouldPlaySound: true,
       shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
     }),
+  });
+
+  // Listen for incoming notifications and speak reminder if voice is enabled
+  Notifications.addNotificationReceivedListener((notification) => {
+    try {
+      const data = notification.request.content.data;
+      if (data && data.medicineName) {
+        const { language } = useSettingsStore.getState();
+        const medName = data.medicineName;
+        const dose = data.dosageAmount || '1 dose';
+        const food = data.foodInstruction || 'After meal';
+        
+        if (language === 'bn') {
+          voiceService.speak(`ওষুধ খাওয়ার সময় হয়েছে: ${medName}, মাত্রা: ${dose}, নির্দেশ: ${food}।`, 'bn');
+        } else {
+          voiceService.speak(`It's time to take ${medName}, dose: ${dose}, instruction: ${food}.`, 'en');
+        }
+      }
+    } catch (e) {
+      console.warn('Notification speech listener error:', e);
+    }
+  });
+
+  // Listen for notification taps
+  Notifications.addNotificationResponseReceivedListener((response) => {
+    try {
+      const data = response.notification.request.content.data;
+      if (data && data.medicineName) {
+        const { language } = useSettingsStore.getState();
+        const medName = data.medicineName;
+        if (language === 'bn') {
+          voiceService.speak(`ওষুধ খাওয়ার রিমাইন্ডার: ${medName} গ্রহণ করুন।`, 'bn');
+        } else {
+          voiceService.speak(`Medicine reminder: Please take ${medName}.`, 'en');
+        }
+      }
+    } catch (e) {
+      console.warn('Notification response listener error:', e);
+    }
   });
 }
 
@@ -38,20 +81,37 @@ export const reminderService = {
 
       if (!medicine.isActive || !medicine.schedules) return;
 
+      const { language } = useSettingsStore.getState();
+
       for (const schedule of medicine.schedules) {
         if (!schedule.isEnabled) continue;
 
         const timeParts = parseTimeString(schedule.time);
         if (!timeParts) continue;
 
+        const foodEn = formatFoodInstructionEn(schedule.foodInstruction || medicine.foodInstruction);
+        const foodBn = formatFoodInstructionBn(schedule.foodInstruction || medicine.foodInstruction);
+
+        const title =
+          language === 'bn'
+            ? `💊 ওষুধের রিমাইন্ডার: ${medicine.name}`
+            : `💊 Medicine Reminder: ${medicine.name}`;
+
+        const body =
+          language === 'bn'
+            ? `এখন ${medicine.name} (${schedule.dosageAmount || medicine.dose || '১টি ট্যাবলেট'}) খাওয়ার সময় - ${foodBn}`
+            : `It's time to take ${medicine.name} (${schedule.dosageAmount || medicine.dose || '1 dose'}) - ${foodEn}`;
+
         await Notifications.scheduleNotificationAsync({
           content: {
-            title: `💊 Medicine Reminder: ${medicine.name}`,
-            body: `Take ${schedule.dosageAmount || '1 dose'} - ${formatFoodInstruction(schedule.foodInstruction || medicine.foodInstruction)}`,
+            title,
+            body,
             data: {
               medicineId: medicine.id,
               scheduleId: schedule.id,
               medicineName: medicine.name,
+              dosageAmount: schedule.dosageAmount || medicine.dose,
+              foodInstruction: language === 'bn' ? foodBn : foodEn,
             },
             sound: true,
           },
@@ -80,6 +140,18 @@ export const reminderService = {
       console.warn('Failed to cancel reminders:', e);
     }
   },
+
+  speakReminder: (medicineName: string, dose?: string, foodInstruction?: string) => {
+    const { language } = useSettingsStore.getState();
+    const food = foodInstruction || (language === 'bn' ? 'খাবারের পরে' : 'After meal');
+    const doseText = dose || (language === 'bn' ? '১টি ট্যাবলেট' : '1 dose');
+
+    if (language === 'bn') {
+      voiceService.speak(`ওষুধ খাওয়ার সময় হয়েছে: ${medicineName}, মাত্রা: ${doseText}, নির্দেশ: ${food}।`, 'bn');
+    } else {
+      voiceService.speak(`It's time to take ${medicineName}, dose: ${doseText}, instruction: ${food}.`, 'en');
+    }
+  },
 };
 
 const parseTimeString = (timeStr: string): { hour: number; minute: number } | null => {
@@ -100,7 +172,7 @@ const parseTimeString = (timeStr: string): { hour: number; minute: number } | nu
   }
 };
 
-const formatFoodInstruction = (inst?: string): string => {
+const formatFoodInstructionEn = (inst?: string): string => {
   switch (inst) {
     case 'BEFORE_MEAL':
       return 'Before meal';
@@ -112,5 +184,20 @@ const formatFoodInstruction = (inst?: string): string => {
       return 'Empty stomach';
     default:
       return 'As directed';
+  }
+};
+
+const formatFoodInstructionBn = (inst?: string): string => {
+  switch (inst) {
+    case 'BEFORE_MEAL':
+      return 'খাবারের আগে';
+    case 'AFTER_MEAL':
+      return 'খাবারের পরে';
+    case 'WITH_MEAL':
+      return 'খাবারের সাথে';
+    case 'EMPTY_STOMACH':
+      return 'খালি পেটে';
+    default:
+      return 'নির্দেশ অনুযায়ী';
   }
 };

@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   TextInput,
   RefreshControl,
+  Alert,
+  Platform,
 } from 'react-native';
 import { palette, typography, spacing, borderRadius } from '../../src/theme';
 import {
@@ -20,6 +22,7 @@ import {
 import { MedicalHistoryItem, HistoryCategory } from '../../src/types';
 import { prescriptionApi } from '../../src/services/api/prescriptionApi';
 import { reportApi } from '../../src/services/api/reportApi';
+import { useSettingsStore } from '../../src/store/useSettingsStore';
 import {
   Search,
   Calendar,
@@ -28,13 +31,21 @@ import {
   Activity,
   CheckCircle2,
   Plus,
+  Trash2,
+  Camera,
   FileText,
-  Filter,
+  AlertCircle,
 } from 'lucide-react-native';
 
-const DEFAULT_HISTORY: MedicalHistoryItem[] = [
+interface HistoryItemExtended extends MedicalHistoryItem {
+  rawId?: string | number;
+  dbType?: 'PRESCRIPTION' | 'REPORT' | 'MEDICINE' | 'DEMO';
+}
+
+const DEFAULT_HISTORY: HistoryItemExtended[] = [
   {
-    id: 'hist_1',
+    id: 'demo_1',
+    dbType: 'DEMO',
     category: 'MEDICINE',
     title: 'Treatment Completed',
     subtitle: 'Napa 500mg (10 days course)',
@@ -45,7 +56,8 @@ const DEFAULT_HISTORY: MedicalHistoryItem[] = [
     badgeType: 'success',
   },
   {
-    id: 'hist_2',
+    id: 'demo_2',
+    dbType: 'DEMO',
     category: 'REPORT',
     title: 'Complete Blood Count (CBC)',
     subtitle: 'National Diagnostic Lab',
@@ -56,7 +68,8 @@ const DEFAULT_HISTORY: MedicalHistoryItem[] = [
     badgeType: 'info',
   },
   {
-    id: 'hist_3',
+    id: 'demo_3',
+    dbType: 'DEMO',
     category: 'PRESCRIPTION',
     title: 'Prescription Digitalized',
     subtitle: '3 medicines prescribed',
@@ -67,26 +80,17 @@ const DEFAULT_HISTORY: MedicalHistoryItem[] = [
     badgeLabel: 'Prescription',
     badgeType: 'info',
   },
-  {
-    id: 'hist_4',
-    category: 'DOCTOR_VISIT',
-    title: 'Consultation & Diagnosis',
-    subtitle: 'Dr. Rahman, MD (Cardiologist)',
-    date: 'Sept 5, 2026',
-    facilityName: 'Apollo Heart & General Clinic',
-    details: 'Diagnosis: Seasonal fever with mild hypertension. Blood test advised.',
-    badgeLabel: 'Doctor Visit',
-    badgeType: 'warning',
-  },
 ];
 
 export default function HistoryScreen() {
-  const [historyItems, setHistoryItems] = useState<MedicalHistoryItem[]>(DEFAULT_HISTORY);
+  const { language, t } = useSettingsStore();
+  const [historyItems, setHistoryItems] = useState<HistoryItemExtended[]>(DEFAULT_HISTORY);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<HistoryCategory>('ALL');
   const [showAddReportModal, setShowAddReportModal] = useState(false);
   const [showScanRxModal, setShowScanRxModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadHistory = async () => {
     try {
@@ -95,46 +99,54 @@ export default function HistoryScreen() {
         reportApi.getReports(),
       ]);
 
-      const items: MedicalHistoryItem[] = [...DEFAULT_HISTORY];
+      const liveItems: HistoryItemExtended[] = [];
 
-      if (rxRes.status === 'fulfilled' && rxRes.value.data) {
-        rxRes.value.data.forEach((rx: any) => {
-          if (!items.some((i) => i.id === `rx_${rx.id}`)) {
-            items.unshift({
-              id: `rx_${rx.id}`,
-              category: 'PRESCRIPTION',
-              title: `Prescription: ${rx.diagnosis || 'General Consultation'}`,
-              subtitle: rx.doctorName || 'Doctor Prescription',
-              date: rx.prescriptionDate || 'Recent',
-              doctorName: rx.doctorName,
-              facilityName: rx.hospitalName,
-              details: rx.notes || `${rx.medicines?.length || 0} medicines included.`,
-              badgeLabel: 'Prescription',
-              badgeType: 'info',
-            });
-          }
+      if (rxRes.status === 'fulfilled' && Array.isArray(rxRes.value)) {
+        rxRes.value.forEach((rx: any) => {
+          const medCount = rx.medicines?.length || 0;
+          const medSummary = rx.medicines?.map((m: any) => `${m.name} ${m.dose || ''}`).join(', ');
+
+          liveItems.push({
+            id: `rx_${rx.id}`,
+            rawId: rx.id,
+            dbType: 'PRESCRIPTION',
+            category: 'PRESCRIPTION',
+            title: rx.diagnosis ? `Prescription: ${rx.diagnosis}` : (language === 'bn' ? 'প্রেসক্রিপশন রেকর্ড' : 'Prescription Record'),
+            subtitle: rx.doctorName ? (language === 'bn' ? `ডাঃ ${rx.doctorName}` : `Dr. ${rx.doctorName}`) : (language === 'bn' ? 'চিকিৎসক প্রেসক্রিপশন' : 'Prescribed Record'),
+            date: rx.prescriptionDate || rx.createdAt?.split('T')[0] || 'Recent',
+            doctorName: rx.doctorName,
+            facilityName: rx.hospitalOrClinic,
+            details: medSummary || rx.notes || (language === 'bn' ? `${medCount} টি ওষুধ অন্তর্ভুক্ত` : `${medCount} medications included.`),
+            badgeLabel: language === 'bn' ? 'প্রেসক্রিপশন' : 'Prescription',
+            badgeType: 'info',
+          });
         });
       }
 
-      if (reportRes.status === 'fulfilled' && reportRes.value.data) {
-        reportRes.value.data.forEach((rep: any) => {
-          if (!items.some((i) => i.id === `rep_${rep.id}`)) {
-            items.unshift({
-              id: `rep_${rep.id}`,
-              category: 'REPORT',
-              title: rep.reportType || 'Medical Lab Report',
-              subtitle: rep.facilityName || 'Diagnostic Center',
-              date: rep.reportDate || 'Recent',
-              doctorName: rep.doctorName,
-              details: rep.summary || rep.diagnosis || 'Lab test results verified and recorded.',
-              badgeLabel: 'Lab Report',
-              badgeType: 'info',
-            });
-          }
+      if (reportRes.status === 'fulfilled' && Array.isArray(reportRes.value)) {
+        reportRes.value.forEach((rep: any) => {
+          liveItems.push({
+            id: `rep_${rep.id}`,
+            rawId: rep.id,
+            dbType: 'REPORT',
+            category: 'REPORT',
+            title: rep.title || (language === 'bn' ? 'মেডিকেল টেস্ট রিপোর্ট' : 'Medical Test Report'),
+            subtitle: rep.hospitalOrLab || (language === 'bn' ? 'ডায়াগনস্টিক ল্যাব' : 'Diagnostic Lab'),
+            date: rep.testDate || rep.createdAt?.split('T')[0] || 'Recent',
+            doctorName: rep.doctorName,
+            details: rep.notes || (language === 'bn' ? `রিপোর্ট টাইপ: ${rep.type}` : `Report Type: ${rep.type}`),
+            badgeLabel: rep.type || (language === 'bn' ? 'রিপোর্ট' : 'Report'),
+            badgeType: 'success',
+          });
         });
       }
 
-      setHistoryItems(items);
+      // If user has created records, prioritize them
+      if (liveItems.length > 0) {
+        setHistoryItems(liveItems);
+      } else {
+        setHistoryItems(DEFAULT_HISTORY);
+      }
     } catch (err) {
       console.log('Error fetching history:', err);
     }
@@ -142,7 +154,7 @@ export default function HistoryScreen() {
 
   useEffect(() => {
     loadHistory();
-  }, []);
+  }, [language]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -150,11 +162,61 @@ export default function HistoryScreen() {
     setRefreshing(false);
   };
 
+  const handleDeleteItem = async (item: HistoryItemExtended) => {
+    if (item.dbType === 'DEMO') {
+      setHistoryItems((prev) => prev.filter((i) => i.id !== item.id));
+      return;
+    }
+
+    const confirmDelete = async () => {
+      try {
+        setDeletingId(item.id);
+        if (item.dbType === 'PRESCRIPTION' && item.rawId) {
+          await prescriptionApi.deletePrescription(String(item.rawId));
+        } else if (item.dbType === 'REPORT' && item.rawId) {
+          await reportApi.deleteReport(String(item.rawId));
+        }
+        await loadHistory();
+      } catch (err) {
+        console.error('Delete error:', err);
+        Alert.alert(
+          language === 'bn' ? 'ত্রুটি' : 'Error',
+          language === 'bn' ? 'রেকর্ড মুছে ফেলা যায়নি।' : 'Could not delete record from database.'
+        );
+      } finally {
+        setDeletingId(null);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const ok = window.confirm(
+        language === 'bn'
+          ? 'আপনি কি এই রেকর্ডটি ডেটাবেস থেকে মুছে ফেলতে নিশ্চিত?'
+          : 'Are you sure you want to delete this record from the database?'
+      );
+      if (ok) {
+        await confirmDelete();
+      }
+    } else {
+      Alert.alert(
+        language === 'bn' ? 'রেকর্ড মুছুন' : 'Delete Record',
+        language === 'bn'
+          ? 'আপনি কি এই রেকর্ডটি ডেটাবেস থেকে মুছে ফেলতে নিশ্চিত?'
+          : 'Are you sure you want to delete this record from database?',
+        [
+          { text: language === 'bn' ? 'বাতিল' : 'Cancel', style: 'cancel' },
+          { text: language === 'bn' ? 'মুছুন' : 'Delete', style: 'destructive', onPress: confirmDelete },
+        ]
+      );
+    }
+  };
+
   const filteredHistory = historyItems.filter((item) => {
     const matchesSearch =
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.subtitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.doctorName?.toLowerCase().includes(searchQuery.toLowerCase());
+      (item.doctorName && item.doctorName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (item.details && item.details.toLowerCase().includes(searchQuery.toLowerCase()));
 
     if (selectedCategory === 'ALL') return matchesSearch;
     return matchesSearch && item.category === selectedCategory;
@@ -177,16 +239,27 @@ export default function HistoryScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <Header
-        title="Medical History"
-        subtitle="Chronological timeline of your health journey"
+        title={t.medicalHistory}
+        subtitle={language === 'bn' ? 'আপনার সমস্ত প্রেসক্রিপশন ও রিপোর্টের রেকর্ড' : 'Chronological timeline of your health journey'}
         rightAction={
-          <TouchableOpacity
-            style={styles.addIconBtn}
-            onPress={() => setShowAddReportModal(true)}
-            activeOpacity={0.7}
-          >
-            <Plus size={20} color={palette.white} />
-          </TouchableOpacity>
+          <View style={styles.headerButtonsRow}>
+            <TouchableOpacity
+              style={styles.scanIconBtn}
+              onPress={() => setShowScanRxModal(true)}
+              activeOpacity={0.7}
+              accessibilityLabel="Scan Prescription"
+            >
+              <Camera size={18} color={palette.white} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.addIconBtn}
+              onPress={() => setShowAddReportModal(true)}
+              activeOpacity={0.7}
+              accessibilityLabel="Add Medical Report"
+            >
+              <Plus size={20} color={palette.white} />
+            </TouchableOpacity>
+          </View>
         }
       />
 
@@ -195,7 +268,7 @@ export default function HistoryScreen() {
         <View style={styles.searchContainer}>
           <Search size={18} color={palette.slate400} style={styles.searchIcon} />
           <TextInput
-            placeholder="Search records, doctors, test names..."
+            placeholder={t.searchRecords}
             placeholderTextColor={palette.slate400}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -210,11 +283,11 @@ export default function HistoryScreen() {
           contentContainerStyle={styles.filterRow}
         >
           {[
-            { key: 'ALL', label: 'All Records' },
-            { key: 'PRESCRIPTION', label: 'Prescriptions' },
-            { key: 'REPORT', label: 'Lab Reports' },
-            { key: 'DOCTOR_VISIT', label: 'Doctor Visits' },
-            { key: 'MEDICINE', label: 'Medicines' },
+            { key: 'ALL', label: t.allRecords },
+            { key: 'PRESCRIPTION', label: t.prescriptions },
+            { key: 'REPORT', label: t.labReports },
+            { key: 'DOCTOR_VISIT', label: t.doctorVisits },
+            { key: 'MEDICINE', label: t.allMedicines },
           ].map((cat) => (
             <TouchableOpacity
               key={cat.key}
@@ -247,46 +320,78 @@ export default function HistoryScreen() {
           {/* Month Group Header */}
           <View style={styles.monthHeader}>
             <Calendar size={14} color={palette.teal700} />
-            <Text style={styles.monthHeaderText}>Timeline Records</Text>
+            <Text style={styles.monthHeaderText}>{t.timelineRecords}</Text>
           </View>
 
-          {filteredHistory.map((item, index) => (
-            <View key={item.id} style={styles.timelineItemWrapper}>
-              {/* Timeline Connector Line */}
-              <View style={styles.timelineLeftColumn}>
-                <View style={styles.iconBullet}>{getCategoryIcon(item.category)}</View>
-                {index < filteredHistory.length - 1 && (
-                  <View style={styles.verticalLine} />
-                )}
-              </View>
-
-              {/* Timeline Card */}
-              <Card style={styles.timelineCard}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.titleArea}>
-                    <Text style={styles.dateLabel}>{item.date}</Text>
-                    <Text style={styles.cardTitle}>{item.title}</Text>
-                    <Text style={styles.cardSubtitle}>{item.subtitle}</Text>
-                  </View>
-                  {item.badgeLabel && (
-                    <Badge label={item.badgeLabel} status="PRIMARY" size="sm" />
+          {filteredHistory.length === 0 ? (
+            <Card style={styles.emptyCard}>
+              <AlertCircle size={32} color={palette.slate400} />
+              <Text style={styles.emptyTitle}>
+                {language === 'bn' ? 'কোন রেকর্ড পাওয়া যায়নি' : 'No Records Found'}
+              </Text>
+              <Text style={styles.emptySub}>
+                {language === 'bn'
+                  ? 'প্রেসক্রিপশন স্ক্যান করুন অথবা টেস্ট রিপোর্ট যোগ করুন।'
+                  : 'Scan a prescription or upload a lab report to start tracking your health history.'}
+              </Text>
+            </Card>
+          ) : (
+            filteredHistory.map((item, index) => (
+              <View key={item.id} style={styles.timelineItemWrapper}>
+                {/* Timeline Connector Line */}
+                <View style={styles.timelineLeftColumn}>
+                  <View style={styles.iconBullet}>{getCategoryIcon(item.category)}</View>
+                  {index < filteredHistory.length - 1 && (
+                    <View style={styles.verticalLine} />
                   )}
                 </View>
 
-                {item.details && (
-                  <Text style={styles.detailsText}>{item.details}</Text>
-                )}
-
-                {item.doctorName && (
-                  <View style={styles.doctorFooter}>
-                    <Text style={styles.doctorFooterText}>
-                      Physician: <Text style={{ fontWeight: '600' }}>{item.doctorName}</Text>
-                    </Text>
+                {/* Timeline Card */}
+                <Card style={styles.timelineCard}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.titleArea}>
+                      <Text style={styles.dateLabel}>{item.date}</Text>
+                      <Text style={styles.cardTitle}>{item.title}</Text>
+                      <Text style={styles.cardSubtitle}>{item.subtitle}</Text>
+                    </View>
+                    <View style={styles.cardTopRight}>
+                      {item.badgeLabel && (
+                        <Badge label={item.badgeLabel} status="PRIMARY" size="sm" />
+                      )}
+                      <TouchableOpacity
+                        style={styles.deleteBtn}
+                        onPress={() => handleDeleteItem(item)}
+                        disabled={deletingId === item.id}
+                        accessibilityLabel="Delete item"
+                      >
+                        <Trash2 size={16} color={palette.danger500} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                )}
-              </Card>
-            </View>
-          ))}
+
+                  {item.details && (
+                    <Text style={styles.detailsText}>{item.details}</Text>
+                  )}
+
+                  {(item.doctorName || item.facilityName) && (
+                    <View style={styles.doctorFooter}>
+                      {item.doctorName ? (
+                        <Text style={styles.doctorFooterText}>
+                          {language === 'bn' ? 'চিকিৎসক:' : 'Physician:'}{' '}
+                          <Text style={{ fontWeight: '600', color: palette.slate800 }}>{item.doctorName}</Text>
+                        </Text>
+                      ) : null}
+                      {item.facilityName ? (
+                        <Text style={styles.facilityFooterText}>
+                          {item.facilityName}
+                        </Text>
+                      ) : null}
+                    </View>
+                  )}
+                </Card>
+              </View>
+            ))
+          )}
         </ScrollView>
       </View>
 
@@ -314,6 +419,19 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
+  },
+  headerButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  scanIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: palette.teal700,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addIconBtn: {
     width: 36,
@@ -387,6 +505,25 @@ const styles = StyleSheet.create({
     color: palette.teal800,
     textTransform: 'uppercase',
   },
+  emptyCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing['2xl'],
+    marginTop: spacing.xl,
+  },
+  emptyTitle: {
+    fontSize: typography.sizes.base,
+    fontWeight: '700',
+    color: palette.slate800,
+    marginTop: spacing.md,
+  },
+  emptySub: {
+    fontSize: typography.sizes.sm,
+    color: palette.slate500,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+    lineHeight: 20,
+  },
   timelineItemWrapper: {
     flexDirection: 'row',
     marginBottom: spacing.md,
@@ -427,6 +564,16 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingRight: spacing.sm,
   },
+  cardTopRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  deleteBtn: {
+    padding: spacing.xs,
+    borderRadius: borderRadius.sm,
+    backgroundColor: palette.danger50,
+  },
   dateLabel: {
     fontSize: typography.sizes.xs,
     fontWeight: '600',
@@ -454,9 +601,16 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs,
     borderTopWidth: 1,
     borderTopColor: palette.slate100,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   doctorFooterText: {
     fontSize: typography.sizes.xs,
     color: palette.slate500,
+  },
+  facilityFooterText: {
+    fontSize: typography.sizes.xs,
+    color: palette.slate400,
   },
 });

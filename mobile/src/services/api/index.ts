@@ -5,3 +5,4 @@ export * from './prescriptionApi';
 export * from './reportApi';
 export * from './doctorApi';
 export * from './pdfApi';
+export * from './diseaseApi';

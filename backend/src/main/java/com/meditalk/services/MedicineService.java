@@ -8,6 +8,8 @@ import com.meditalk.entities.MedicineSchedule;
 import com.meditalk.entities.Prescription;
 import com.meditalk.entities.User;
 import com.meditalk.exceptions.ResourceNotFoundException;
+import com.meditalk.entities.MedicineLog;
+import com.meditalk.repositories.MedicineLogRepository;
 import com.meditalk.repositories.MedicineRepository;
 import com.meditalk.repositories.MedicineScheduleRepository;
 import com.meditalk.repositories.PrescriptionRepository;
@@ -15,6 +17,8 @@ import com.meditalk.repositories.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,15 +27,18 @@ public class MedicineService {
 
     private final MedicineRepository medicineRepository;
     private final MedicineScheduleRepository scheduleRepository;
+    private final MedicineLogRepository medicineLogRepository;
     private final UserRepository userRepository;
     private final PrescriptionRepository prescriptionRepository;
 
     public MedicineService(MedicineRepository medicineRepository,
                            MedicineScheduleRepository scheduleRepository,
+                           MedicineLogRepository medicineLogRepository,
                            UserRepository userRepository,
                            PrescriptionRepository prescriptionRepository) {
         this.medicineRepository = medicineRepository;
         this.scheduleRepository = scheduleRepository;
+        this.medicineLogRepository = medicineLogRepository;
         this.userRepository = userRepository;
         this.prescriptionRepository = prescriptionRepository;
     }
@@ -60,6 +67,8 @@ public class MedicineService {
             prescription = prescriptionRepository.findByIdAndUserId(request.getPrescriptionId(), userId).orElse(null);
         }
 
+        LocalDate startDate = request.getStartDate() != null ? request.getStartDate() : LocalDate.now();
+
         Medicine medicine = Medicine.builder()
                 .user(user)
                 .prescription(prescription)
@@ -69,14 +78,16 @@ public class MedicineService {
                 .form(request.getForm() != null ? request.getForm() : "TABLET")
                 .frequency(request.getFrequency() != null ? request.getFrequency() : "ONCE_DAILY")
                 .foodInstruction(request.getFoodInstruction() != null ? request.getFoodInstruction() : "AFTER_MEAL")
-                .startDate(request.getStartDate())
+                .startDate(startDate)
                 .endDate(request.getEndDate())
-                .durationDays(request.getDurationDays())
+                .durationDays(request.getDurationDays() != null ? request.getDurationDays() : 10)
                 .instructions(request.getInstructions())
                 .isActive(request.getIsActive() != null ? request.getIsActive() : true)
                 .build();
 
         Medicine savedMed = medicineRepository.save(medicine);
+
+        List<MedicineSchedule> createdSchedules = new ArrayList<>();
 
         if (request.getSchedules() != null && !request.getSchedules().isEmpty()) {
             for (MedicineScheduleDto schDto : request.getSchedules()) {
@@ -90,11 +101,42 @@ public class MedicineService {
                         .build();
                 scheduleRepository.save(schedule);
                 savedMed.getSchedules().add(schedule);
+                createdSchedules.add(schedule);
+            }
+        } else {
+            MedicineSchedule defaultSch = MedicineSchedule.builder()
+                    .medicine(savedMed)
+                    .time("08:00 AM")
+                    .label("MORNING")
+                    .dosageAmount("1 Tablet")
+                    .foodInstruction(savedMed.getFoodInstruction())
+                    .isEnabled(true)
+                    .build();
+            scheduleRepository.save(defaultSch);
+            savedMed.getSchedules().add(defaultSch);
+            createdSchedules.add(defaultSch);
+        }
+
+        // Auto-seed today's medicine log for immediate display in Today's Schedule
+        for (MedicineSchedule s : createdSchedules) {
+            if (s.getIsEnabled()) {
+                MedicineLog logItem = MedicineLog.builder()
+                        .user(user)
+                        .medicine(savedMed)
+                        .scheduleId(s.getId())
+                        .medicineName(savedMed.getName())
+                        .dose(s.getDosageAmount())
+                        .scheduledTime(s.getTime())
+                        .status("PENDING")
+                        .foodInstruction(s.getFoodInstruction())
+                        .build();
+                medicineLogRepository.save(logItem);
             }
         }
 
         return mapToResponse(savedMed);
     }
+
 
     @Transactional
     public MedicineResponse updateMedicine(Long id, Long userId, MedicineRequest request) {

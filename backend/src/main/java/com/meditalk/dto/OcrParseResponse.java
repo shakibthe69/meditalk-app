@@ -9,7 +9,11 @@ public class OcrParseResponse {
     private String prescriptionDate;
     private String diagnosis;
     private String rawOcrText;
+    private String imageUrl;
     private List<ExtractedMedicineDto> medicines = new ArrayList<>();
+    private List<String> detectedLanguages = new ArrayList<>();
+    private double confidenceScore = 0.95;
+    private String preprocessingSummary;
     private String notes;
     private boolean requiresUserVerification = true;
     private String safetyDisclaimer;
@@ -31,8 +35,20 @@ public class OcrParseResponse {
     public String getRawOcrText() { return rawOcrText; }
     public void setRawOcrText(String rawOcrText) { this.rawOcrText = rawOcrText; }
 
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+
     public List<ExtractedMedicineDto> getMedicines() { return medicines; }
     public void setMedicines(List<ExtractedMedicineDto> medicines) { this.medicines = medicines; }
+
+    public List<String> getDetectedLanguages() { return detectedLanguages; }
+    public void setDetectedLanguages(List<String> detectedLanguages) { this.detectedLanguages = detectedLanguages; }
+
+    public double getConfidenceScore() { return confidenceScore; }
+    public void setConfidenceScore(double confidenceScore) { this.confidenceScore = confidenceScore; }
+
+    public String getPreprocessingSummary() { return preprocessingSummary; }
+    public void setPreprocessingSummary(String preprocessingSummary) { this.preprocessingSummary = preprocessingSummary; }
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
@@ -55,7 +71,11 @@ public class OcrParseResponse {
         public Builder prescriptionDate(String prescriptionDate) { res.setPrescriptionDate(prescriptionDate); return this; }
         public Builder diagnosis(String diagnosis) { res.setDiagnosis(diagnosis); return this; }
         public Builder rawOcrText(String rawOcrText) { res.setRawOcrText(rawOcrText); return this; }
+        public Builder imageUrl(String imageUrl) { res.setImageUrl(imageUrl); return this; }
         public Builder medicines(List<ExtractedMedicineDto> medicines) { res.setMedicines(medicines); return this; }
+        public Builder detectedLanguages(List<String> detectedLanguages) { res.setDetectedLanguages(detectedLanguages); return this; }
+        public Builder confidenceScore(double confidenceScore) { res.setConfidenceScore(confidenceScore); return this; }
+        public Builder preprocessingSummary(String preprocessingSummary) { res.setPreprocessingSummary(preprocessingSummary); return this; }
         public Builder notes(String notes) { res.setNotes(notes); return this; }
         public Builder requiresUserVerification(boolean requiresUserVerification) { res.setRequiresUserVerification(requiresUserVerification); return this; }
         public Builder safetyDisclaimer(String safetyDisclaimer) { res.setSafetyDisclaimer(safetyDisclaimer); return this; }

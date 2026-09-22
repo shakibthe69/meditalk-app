@@ -23,16 +23,42 @@ export const palette = {
   success100: '#DCFCE7',
   success500: '#22C55E',
   success600: '#16A34A',
+  success700: '#15803D',
 
   warning50: '#FFFBEB',
   warning100: '#FEF3C7',
+  warning200: '#FDE68A',
+  warning300: '#FCD34D',
   warning500: '#F59E0B',
   warning600: '#D97706',
+  warning700: '#B45309',
+  warning800: '#92400E',
+  warning900: '#78350F',
 
   danger50: '#FEF2F2',
   danger100: '#FEE2E2',
+  danger200: '#FECACA',
+  danger300: '#FCA5A5',
   danger500: '#EF4444',
   danger600: '#DC2626',
+  danger700: '#B91C1C',
+  danger800: '#991B1B',
+  danger900: '#7F1D1D',
+
+  // Specialty & Accents
+  purple50: '#FAF5FF',
+  purple100: '#F3E8FF',
+  purple600: '#9333EA',
+  purple700: '#7E22CE',
+
+  amber500: '#F59E0B',
+  amber600: '#D97706',
+  amber700: '#B45309',
+
+  coral50: '#FFF1F2',
+  coral500: '#F43F5E',
+  coral600: '#E11D48',
+  coral700: '#BE123C',
 
   // Neutrals (Slate)
   slate50: '#F8FAFC',
