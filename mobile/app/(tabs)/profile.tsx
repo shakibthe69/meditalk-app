@@ -9,11 +9,21 @@ import {
   Alert,
   Switch,
   Platform,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore, useSettingsStore } from '../../src/store';
 import { palette, typography, spacing, borderRadius } from '../../src/theme';
-import { Card, Badge, Header, ExportPdfModal } from '../../src/components';
+import {
+  Card,
+  Badge,
+  Header,
+  ExportPdfModal,
+  CallHistoryModal,
+  EditProfileModal,
+  NotificationSettingsModal,
+  HelpRequestModal,
+} from '../../src/components';
 import { voiceService } from '../../src/services/voice';
 import {
   User,
@@ -22,6 +32,7 @@ import {
   ShieldAlert,
   FileDown,
   Stethoscope,
+  PhoneCall,
   Bell,
   Lock,
   LogOut,
@@ -29,6 +40,8 @@ import {
   Languages,
   Volume2,
   VolumeX,
+  Pencil,
+  LifeBuoy,
 } from 'lucide-react-native';
 
 const DEFAULT_EMERGENCY_CONTACT = '01701660169';
@@ -36,8 +49,20 @@ const DEFAULT_EMERGENCY_CONTACT = '01701660169';
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const { language, voiceEnabled, t, setLanguage, setVoiceEnabled, toggleLanguage } = useSettingsStore();
+  const {
+    language,
+    voiceEnabled,
+    t,
+    setLanguage,
+    setVoiceEnabled,
+    toggleLanguage,
+    avatarUri,
+  } = useSettingsStore();
   const [showPdfModal, setShowPdfModal] = useState(false);
+  const [showCallHistory, setShowCallHistory] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [showHelpRequest, setShowHelpRequest] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -76,22 +101,11 @@ export default function ProfileScreen() {
   };
 
   const showReminderSettings = () => {
-    Alert.alert(
-      language === 'bn' ? 'ওষুধের রিমাইন্ডার ও নোটিফিকেশন' : 'Medicine Alarms & Notifications',
-      language === 'bn'
-        ? 'আপনার নির্ধারিত ওষুধের সময় অনুযায়ী সাউন্ড ও ভাইব্রেশনসহ প্রতিদিন স্বয়ংক্রিয় রিমাইন্ডার পাঠানো হয়।\n\nঅবস্থা: সক্রিয় ও কার্যকর'
-        : 'Notifications are configured with sound, vibration, and persistent daily schedules matching your prescribed dosing times.\n\nStatus: ACTIVE & ENABLED',
-      [{ text: language === 'bn' ? 'সম্পন্ন' : 'Done' }]
+    voiceService.speak(
+      language === 'bn' ? 'নোটিফিকেশন সেটিংস খোলা হয়েছে' : 'Notification settings opened',
+      language
     );
-  };
-
-  const showDoctorsDirectory = () => {
-    Alert.alert(
-      language === 'bn' ? 'ডাক্তারদের ডিরেক্টরি' : 'My Doctors Directory',
-      '1. Dr. S. M. Rahman, FCPS (Cardiology) - Apollo Heart Clinic\n' +
-      '2. Dr. Sarah Jenkins, MD (General Medicine) - City Care Hospital',
-      [{ text: language === 'bn' ? 'বন্ধ করুন' : 'Close' }]
-    );
+    setShowNotificationSettings(true);
   };
 
   return (
@@ -109,7 +123,11 @@ export default function ProfileScreen() {
         <Card style={styles.patientCard}>
           <View style={styles.avatarRow}>
             <View style={styles.avatar}>
-              <User size={32} color={palette.teal700} />
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+              ) : (
+                <User size={32} color={palette.teal700} />
+              )}
             </View>
 
             <View style={styles.patientMain}>
@@ -131,6 +149,21 @@ export default function ProfileScreen() {
               </View>
             </View>
           </View>
+
+          <TouchableOpacity
+            style={styles.editProfileBtn}
+            activeOpacity={0.8}
+            onPress={() => {
+              voiceService.speak(
+                language === 'bn' ? 'প্রোফাইল সম্পাদনা খোলা হয়েছে' : 'Edit profile opened',
+                language
+              );
+              setShowEditProfile(true);
+            }}
+          >
+            <Pencil size={15} color={palette.teal700} />
+            <Text style={styles.editProfileBtnText}>{t.editProfile}</Text>
+          </TouchableOpacity>
 
           {/* Vitals & Demographics Grid */}
           <View style={styles.vitalsGrid}>
@@ -251,15 +284,42 @@ export default function ProfileScreen() {
           <TouchableOpacity
             style={styles.menuItem}
             activeOpacity={0.7}
-            onPress={showDoctorsDirectory}
+            onPress={() => {
+              voiceService.speak(
+                language === 'bn' ? 'ডাক্তার তালিকা খোলা হচ্ছে' : 'Opening the doctors list',
+                language
+              );
+              router.push('/doctors');
+            }}
           >
             <View style={[styles.menuIconCircle, { backgroundColor: palette.blue50 }]}>
               <Stethoscope size={20} color={palette.blue600} />
             </View>
             <View style={styles.menuTextContainer}>
-              <Text style={styles.menuTitle}>{language === 'bn' ? 'ডাক্তারদের ডিরেক্টরি' : 'My Doctors Directory'}</Text>
+              <Text style={styles.menuTitle}>{t.findDoctors}</Text>
               <Text style={styles.menuSubtitle}>
-                {language === 'bn' ? 'চিকিৎসকদের চেম্বার ও সময়সূচি' : 'Manage physician contacts and chamber timings'}
+                {t.findDoctorsSubtitle}
+              </Text>
+            </View>
+            <ChevronRight size={18} color={palette.slate400} />
+          </TouchableOpacity>
+
+          <View style={styles.menuDivider} />
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            activeOpacity={0.7}
+            onPress={() => setShowCallHistory(true)}
+          >
+            <View style={[styles.menuIconCircle, { backgroundColor: palette.success50 }]}>
+              <PhoneCall size={20} color={palette.success600} />
+            </View>
+            <View style={styles.menuTextContainer}>
+              <Text style={styles.menuTitle}>{t.callHistory}</Text>
+              <Text style={styles.menuSubtitle}>
+                {language === 'bn'
+                  ? 'ডাক্তারের সাথে কলের ইতিহাস ও আবার কল করুন'
+                  : 'Review past calls and call back in one tap'}
               </Text>
             </View>
             <ChevronRight size={18} color={palette.slate400} />
@@ -280,6 +340,23 @@ export default function ProfileScreen() {
             <View style={styles.menuTextContainer}>
               <Text style={styles.menuTitle}>{language === 'bn' ? 'রিমাইন্ডার নোটিফিকেশন' : 'Reminder Notifications'}</Text>
               <Text style={styles.menuSubtitle}>{language === 'bn' ? 'সাউন্ড ও অ্যালার্ম শিডিউল' : 'Sound, vibration and recurring alarms'}</Text>
+            </View>
+            <ChevronRight size={18} color={palette.slate400} />
+          </TouchableOpacity>
+
+          <View style={styles.menuDivider} />
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            activeOpacity={0.7}
+            onPress={() => setShowHelpRequest(true)}
+          >
+            <View style={[styles.menuIconCircle, { backgroundColor: palette.teal50 }]}>
+              <LifeBuoy size={20} color={palette.teal700} />
+            </View>
+            <View style={styles.menuTextContainer}>
+              <Text style={styles.menuTitle}>{language === 'bn' ? 'কেয়ার টিমে যোগাযোগ' : 'Contact Care Team'}</Text>
+              <Text style={styles.menuSubtitle}>{language === 'bn' ? 'অ্যাডমিনের কাছে সহায়তা চান' : 'Send a help request to the admin'}</Text>
             </View>
             <ChevronRight size={18} color={palette.slate400} />
           </TouchableOpacity>
@@ -339,6 +416,26 @@ export default function ProfileScreen() {
         visible={showPdfModal}
         onClose={() => setShowPdfModal(false)}
       />
+
+      <HelpRequestModal
+        visible={showHelpRequest}
+        onClose={() => setShowHelpRequest(false)}
+      />
+
+      {/* Edit Profile */}
+      <EditProfileModal visible={showEditProfile} onClose={() => setShowEditProfile(false)} />
+
+      {/* Reminder notification options */}
+      <NotificationSettingsModal
+        visible={showNotificationSettings}
+        onClose={() => setShowNotificationSettings(false)}
+      />
+
+      {/* Call History Modal */}
+      <CallHistoryModal
+        visible={showCallHistory}
+        onClose={() => setShowCallHistory(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -370,6 +467,27 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: palette.teal200,
     marginRight: spacing.base,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  editProfileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: palette.teal50,
+    borderWidth: 1,
+    borderColor: palette.teal200,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+  },
+  editProfileBtnText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: '700',
+    color: palette.teal700,
   },
   patientMain: {
     flex: 1,

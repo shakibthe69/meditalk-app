@@ -32,11 +32,49 @@ app:
   jwt:
     secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
     expiration-ms: 86400000
+  # ICE servers for WebRTC audio/video calls.
+  # STUN is enough on the same network; set the TURN properties to place calls
+  # that traverse strict NATs/firewalls. TURN credentials stay server-side.
+  webrtc:
+    stun-urls:
+      - stun:stun.l.google.com:19302
+      - stun:stun1.l.google.com:19302
+    turn-url: ${WEBRTC_TURN_URL:}
+    turn-username: ${WEBRTC_TURN_USERNAME:}
+    turn-credential: ${WEBRTC_TURN_CREDENTIAL:}
+  # Admin Panel: monitoring thresholds + seeded administrator login.
+  # Override the credentials via environment (ADMIN_EMAIL / ADMIN_PASSWORD)
+  # in any real deployment — they are never exposed to the mobile client.
+  admin:
+    email: ${ADMIN_EMAIL:admin@meditalk.com}
+    password: ${ADMIN_PASSWORD:AdminPass123!}
+    inactive-monitor-days: 2
+    inactive-follow-up-days: 3
+    inactive-high-priority-days: 5
+    unconfirmed-doses-follow-up: 3
+    unconfirmed-doses-high-priority: 6
+    low-adherence-percent: 70
+    prescription-expiry-warning-days: 7
+    missed-dose-alert-aggregation: 3
   storage:
     upload-dir: d:/Meditalk/backend/uploads
   ocr:
+    # Primary OCR provider for prescription images. The API key is server-side only.
+    ocr-space:
+      enabled: ${OCR_SPACE_ENABLED:true}
+      api-key: ${OCR_SPACE_API_KEY:}
+      endpoint: ${OCR_SPACE_ENDPOINT:https://api.ocr.space/parse/image}
+      # OCR.space language code (eng = English, auto = auto-detect).
+      language: ${OCR_SPACE_LANGUAGE:eng}
+      # 2 = best for printed/typed text, 1 = broader language support.
+      engine: ${OCR_SPACE_ENGINE:2}
+      timeout-seconds: ${OCR_SPACE_TIMEOUT_SECONDS:45}
+      # Free OCR.space plans accept 1 MB uploads; the service re-encodes larger photos.
+      max-payload-bytes: ${OCR_SPACE_MAX_PAYLOAD_BYTES:1000000}
+      paid-plan: ${OCR_SPACE_PAID_PLAN:false}
+    # Backup OCR provider (also better for mixed Bangla/English pages).
     google-cloud:
-      enabled: true
+      enabled: ${GOOGLE_VISION_ENABLED:true}
       credentials-path: ${GOOGLE_APPLICATION_CREDENTIALS:}
       api-key: ${GOOGLE_CLOUD_API_KEY:}
     preprocessing:
@@ -44,3 +82,16 @@ app:
       contrast-enhancement: true
       sharpening: true
       grayscale: true
+  gemini:
+    # Shared fallback credential used only when a dedicated key below is not set.
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-3.8-flash}
+    fallback-models: ${GEMINI_FALLBACK_MODELS:gemini-flash-latest,gemini-3.5-flash,gemini-2.5-flash}
+    max-output-tokens: ${GEMINI_MAX_OUTPUT_TOKENS:800}
+    temperature: ${GEMINI_TEMPERATURE:0.3}
+    timeout-seconds: ${GEMINI_TIMEOUT_SECONDS:45}
+    # Dedicated credential for structured prescription extraction (OCR text -> JSON).
+    prescription-api-key: ${PRESCRIPTION_GEMINI_API_KEY:}
+    # Dedicated credential for the patient-facing health chat assistant.
+    health-chat-api-key: ${HEALTH_CHAT_GEMINI_API_KEY:}
+    health-chat-model: ${HEALTH_CHAT_GEMINI_MODEL:}

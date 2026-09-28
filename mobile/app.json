@@ -11,7 +11,11 @@
       "backgroundColor": "#0D9488"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "MediTalk uses your camera for video consultations with your doctor.",
+        "NSMicrophoneUsageDescription": "MediTalk uses your microphone for audio and video consultations with your doctor."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +23,15 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.BLUETOOTH_CONNECT"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -27,7 +39,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow MediTalk to use your location to find nearby hospitals in an emergency."
+        }
+      ]
     ]
   }
 }

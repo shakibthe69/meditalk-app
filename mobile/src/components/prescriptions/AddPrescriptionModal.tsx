@@ -19,6 +19,7 @@ import { prescriptionApi } from '../../services/api';
 import { reminderService } from '../../services/notifications/reminderService';
 import { voiceService } from '../../services/voice';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useMedicineStore } from '../../store/useMedicineStore';
 import { ExtractedMedicine, PrescriptionOcrDraft } from '../../types';
 import {
   Camera,
@@ -34,6 +35,7 @@ import {
   Languages,
   AlertTriangle,
   Pill,
+  RefreshCw,
 } from 'lucide-react-native';
 
 interface AddPrescriptionModalProps {
@@ -43,7 +45,92 @@ interface AddPrescriptionModalProps {
   onSuccess?: () => void;
 }
 
-const DOSE_PATTERNS = ['1+1+1', '1+0+1', '0+1+0', '1+0+0', '0+0+1'];
+const DOSE_PATTERNS = ['1+1+1', '1+0+1', '1+1+1+1', '0+1+0', '1+0+0', '0+0+1'];
+
+/**
+ * Slot naming must match the backend (OcrAiParserService.buildSchedulesForMedicine) so
+ * the review screen and the saved reminders show identical dose times.
+ */
+const PATTERN_SLOT_LABELS: Record<number, string[]> = {
+  1: ['morning'],
+  2: ['morning', 'night'],
+  3: ['morning', 'afternoon', 'night'],
+  4: ['morning', 'afternoon', 'evening', 'night'],
+};
+
+const SLOT_TIMES: Record<
+  string,
+  { time: string; label: 'MORNING' | 'AFTERNOON' | 'EVENING' | 'NIGHT' }
+> = {
+  morning: { time: '08:00 AM', label: 'MORNING' },
+  afternoon: { time: '02:00 PM', label: 'AFTERNOON' },
+  evening: { time: '06:00 PM', label: 'EVENING' },
+  night: { time: '10:00 PM', label: 'NIGHT' },
+};
+
+const capitalizeWord = (value?: string | null) =>
+  value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : '';
+
+/**
+ * Converts a dose pattern such as '2+0+1' into reminder slots. Nothing is produced when
+ * no schedule was stated, because MediTalk never invents dose times.
+ */
+const buildScheduleSlots = (
+  dosePattern?: string | null,
+  form?: string | null,
+  foodInstruction?: string | null
+) => {
+  const parts = String(dosePattern || '')
+    .split('+')
+    .map((p) => parseInt(p.trim(), 10) || 0);
+
+  if (!parts.some((count) => count > 0)) {
+    return [];
+  }
+
+  const labels = PATTERN_SLOT_LABELS[parts.length] || PATTERN_SLOT_LABELS[4];
+  const unit = capitalizeWord(form) || 'Tablet';
+
+  return parts
+    .map((count, index) => ({ count, slot: labels[index] }))
+    .filter((entry) => entry.slot && entry.count > 0)
+    .map((entry) => ({
+      time: SLOT_TIMES[entry.slot].time,
+      label: SLOT_TIMES[entry.slot].label,
+      dosageAmount: `${entry.count} ${entry.count > 1 ? `${unit}s` : unit}`,
+      foodInstruction: foodInstruction || undefined,
+      isEnabled: true,
+    }));
+};
+
+/**
+ * Reminder slots used when saving: the schedule the prescription states when there is
+ * one, otherwise a single editable 08:00 AM morning reminder so the medicine still
+ * appears in the patient's reminder list. The review screen shows which one applies.
+ */
+const schedulesForMedicine = (med: ExtractedMedicine) => {
+  const stated = buildScheduleSlots(med.dosePattern, med.form, med.foodInstruction);
+  if (stated.length > 0) {
+    return stated;
+  }
+  return [
+    {
+      time: '08:00 AM',
+      label: 'MORNING' as const,
+      dosageAmount: '1 dose',
+      foodInstruction: med.foodInstruction || 'AFTER_MEAL',
+      isEnabled: true,
+    },
+  ];
+};
+
+/** Dose-pattern choices, always including whatever the AI extracted. */
+const dosePatternOptions = (current?: string | null) => {
+  const options = current && !DOSE_PATTERNS.includes(current)
+    ? [current, ...DOSE_PATTERNS]
+    : DOSE_PATTERNS;
+  return options;
+};
 
 export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
   visible,
@@ -60,11 +147,12 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
   const [processingStage, setProcessingStage] = useState<string>(t.processingPrescription);
   const [ocrDraft, setOcrDraft] = useState<PrescriptionOcrDraft | null>(null);
 
-  // Editable fields in CONFIRM_AI
-  const [doctorName, setDoctorName] = useState('Dr. Prescribing Physician');
-  const [hospitalOrClinic, setHospitalOrClinic] = useState('Health Clinic');
+  // Editable fields in CONFIRM_AI. Unreadable values stay empty — MediTalk never
+  // pre-fills medical details that the prescription did not state.
+  const [doctorName, setDoctorName] = useState('');
+  const [hospitalOrClinic, setHospitalOrClinic] = useState('');
   const [prescriptionDate, setPrescriptionDate] = useState(new Date().toISOString().split('T')[0]);
-  const [diagnosis, setDiagnosis] = useState('Consultation');
+  const [diagnosis, setDiagnosis] = useState('');
   const [medicines, setMedicines] = useState<ExtractedMedicine[]>([]);
 
   // Trigger step voice prompt whenever step changes and modal is visible
@@ -87,10 +175,10 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
     setOcrDraft(null);
     setIsProcessing(false);
     setProcessingStage(t.processingPrescription);
-    setDoctorName('Dr. Prescribing Physician');
-    setHospitalOrClinic('Health Clinic');
+    setDoctorName('');
+    setHospitalOrClinic('');
     setPrescriptionDate(new Date().toISOString().split('T')[0]);
-    setDiagnosis('Consultation');
+    setDiagnosis('');
     setMedicines([]);
   };
 
@@ -142,6 +230,12 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
     setProcessingStage(t.processingPrescription);
     voiceService.speakStep('SCANNING', language);
 
+    const timer = startProgressStages([
+      t.loadingReadingPrescription,
+      t.loadingUnderstandingPrescription,
+      t.loadingPreparingMedicines,
+    ]);
+
     try {
       const parsed = await prescriptionApi.parseOcrText(sampleText);
       populateDraftFields(parsed);
@@ -149,14 +243,35 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
     } catch (err) {
       setStep('RAW_TEXT');
     } finally {
+      clearInterval(timer);
       setIsProcessing(false);
     }
   };
 
+  /**
+   * Shows honest progress while the single scan request is in flight. The stage text
+   * is a guide, not a fabricated percentage.
+   */
+  const startProgressStages = (stages: string[]) => {
+    let index = 0;
+    setProcessingStage(stages[0]);
+    return setInterval(() => {
+      index = Math.min(index + 1, stages.length - 1);
+      setProcessingStage(stages[index]);
+    }, 2000);
+  };
+
   const executeOcrPipeline = async (uri: string) => {
     setIsProcessing(true);
-    setProcessingStage(t.processingPrescription);
+    setSelectedImage(uri);
     voiceService.speakStep('SCANNING', language);
+
+    const timer = startProgressStages([
+      t.loadingUploadingPrescription,
+      t.loadingReadingPrescription,
+      t.loadingUnderstandingPrescription,
+      t.loadingPreparingMedicines,
+    ]);
 
     try {
       const response = await prescriptionApi.scanPrescriptionImage(uri);
@@ -165,13 +280,22 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
       populateDraftFields(response);
       setStep('CONFIRM_AI');
     } catch (error: any) {
-      console.warn('OCR Scan fallback:', error);
-      // Offline fallback
-      setRawOcrText(
-        'Dr. S. M. Rahman, MBBS, FCPS\nApollo General Clinic\n\n1. Tab. Napa 500mg\n1+0+1 After meal - 5 days\n2. Cap. Seclo 20mg\n1+0+0 Before meal - 14 days'
-      );
-      setStep('RAW_TEXT');
+      // Medical safety: never fabricate prescription text on failure. Surface the
+      // real error so the user can retry with a clearer photo or type it manually.
+      console.warn('Prescription OCR failed:', error);
+      setRawOcrText('');
+      setStep('CAPTURE');
+      const message =
+        error?.response?.data?.message ||
+        (language === 'bn'
+          ? 'প্রেসক্রিপশন পড়া যায়নি। পরিষ্কার ছবি দিয়ে আবার চেষ্টা করুন।'
+          : 'Could not read the prescription. Please try a clearer photo or enter the text manually.');
+      Alert.alert(language === 'bn' ? 'স্ক্যান ব্যর্থ' : 'Scan failed', message, [
+        { text: t.backToCapture, style: 'cancel' },
+        { text: t.retryOcr, onPress: () => executeOcrPipeline(uri) },
+      ]);
     } finally {
+      clearInterval(timer);
       setIsProcessing(false);
     }
   };
@@ -183,13 +307,18 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
     if (draft.prescriptionDate) setPrescriptionDate(draft.prescriptionDate);
     if (draft.diagnosis) setDiagnosis(draft.diagnosis);
 
+    // Fields the prescription did not state stay empty so the patient fills them in
+    // consciously instead of accepting an invented value.
     const medsList = draft.medicines || draft.extractedMedicines || [];
     const normalizedMeds: ExtractedMedicine[] = medsList.map((m) => ({
       ...m,
-      dosePattern: m.dosePattern || '1+0+0',
-      foodInstruction: m.foodInstruction || 'AFTER_MEAL',
-      duration: m.duration || '5 days',
-      form: m.form || 'TABLET',
+      dose: m.dose ?? '',
+      dosePattern: m.dosePattern ?? '',
+      foodInstruction: m.foodInstruction ?? '',
+      duration: m.duration ?? '',
+      form: m.form ?? '',
+      frequency: m.frequency ?? '',
+      timing: m.timing ?? [],
     }));
     setMedicines(normalizedMeds);
   };
@@ -200,13 +329,25 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
     setProcessingStage(t.processingPrescription);
     voiceService.speakStep('SCANNING', language);
 
+    const timer = startProgressStages([
+      t.loadingUnderstandingPrescription,
+      t.loadingPreparingMedicines,
+    ]);
+
     try {
       const parsed = await prescriptionApi.parseOcrText(rawOcrText, selectedImage || undefined);
       populateDraftFields(parsed);
       setStep('CONFIRM_AI');
-    } catch (error) {
-      Alert.alert('AI Parsing Failed', 'Could not parse text. Please edit or try again.');
+    } catch (error: any) {
+      Alert.alert(
+        language === 'bn' ? 'বিশ্লেষণ ব্যর্থ' : 'AI Parsing Failed',
+        error?.response?.data?.message ||
+          (language === 'bn'
+            ? 'টেক্সট বিশ্লেষণ করা যায়নি। সম্পাদনা করে আবার চেষ্টা করুন।'
+            : 'Could not analyze the text. Please edit it and try again.')
+      );
     } finally {
+      clearInterval(timer);
       setIsProcessing(false);
     }
   };
@@ -217,15 +358,13 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
       const updated = [...prev];
       const med = { ...updated[index], [field]: value };
 
-      // If dosePattern changed, auto-update timing & schedules
+      // If dosePattern changed, auto-update the reminder slots from the stated pattern
       if (field === 'dosePattern') {
         const parts = String(value).split('+').map((p) => parseInt(p.trim(), 10) || 0);
-        const timing: string[] = [];
-        if (parts[0] > 0) timing.push('morning');
-        if (parts[1] > 0) timing.push('afternoon');
-        if (parts[2] > 0) timing.push('night');
-        if (parts[3] > 0) timing.push('night');
-        med.timing = timing.length > 0 ? timing : ['morning'];
+        const labels = PATTERN_SLOT_LABELS[parts.length] || PATTERN_SLOT_LABELS[4];
+        med.timing = parts
+          .map((count, index) => (count > 0 ? labels[index] : null))
+          .filter((slot): slot is string => Boolean(slot));
       }
 
       updated[index] = med;
@@ -238,16 +377,16 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
   };
 
   const handleAddMedicine = () => {
+    // Blank template: the patient types what the prescription actually says.
     const newMed: ExtractedMedicine = {
       name: '',
-      dose: '500mg',
-      form: 'TABLET',
-      frequency: 'ONCE_DAILY',
-      dosePattern: '1+0+0',
-      timing: ['morning'],
-      foodInstruction: 'AFTER_MEAL',
-      duration: '5 days',
-      durationDays: 5,
+      dose: '',
+      form: '',
+      frequency: '',
+      dosePattern: '',
+      timing: [],
+      foodInstruction: '',
+      duration: '',
       isUncertain: false,
       confidenceScore: 1.0,
     };
@@ -270,6 +409,95 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
     voiceService.speak(speechText, language);
   };
 
+  const buildMedicinesPayload = () =>
+    medicines.map((med) => {
+      const schedules = schedulesForMedicine(med);
+      return {
+        name: med.name.trim(),
+        genericName: med.genericName || undefined,
+        dose: (med.dose || '').trim(),
+        form: med.form || 'TABLET',
+        frequency:
+          med.frequency ||
+          (schedules.length >= 4
+            ? 'FOUR_TIMES_DAILY'
+            : schedules.length === 3
+            ? 'THRICE_DAILY'
+            : schedules.length === 2
+            ? 'TWICE_DAILY'
+            : 'ONCE_DAILY'),
+        foodInstruction: med.foodInstruction || 'AFTER_MEAL',
+        startDate: prescriptionDate || new Date().toISOString().split('T')[0],
+        durationDays: med.durationDays,
+        instructions:
+          [med.foodInstruction || null, med.duration ? `Duration: ${med.duration}` : null]
+            .filter(Boolean)
+            .join(', ') || undefined,
+        isActive: true,
+        schedules,
+      };
+    });
+
+  const persistPrescription = async (allowDuplicate: boolean) => {
+    setIsProcessing(true);
+    setProcessingStage(language === 'bn' ? 'সংরক্ষণ করা হচ্ছে...' : 'Saving prescription and reminders...');
+    try {
+      const medicinesPayload = buildMedicinesPayload();
+
+      const savedPrescription = await prescriptionApi.createPrescription(
+        {
+          doctorName: doctorName.trim(),
+          hospitalOrClinic: hospitalOrClinic.trim() || undefined,
+          prescriptionDate: prescriptionDate || new Date().toISOString().split('T')[0],
+          diagnosis: diagnosis.trim() || undefined,
+          rawOcrText: rawOcrText || ocrDraft?.rawOcrText,
+          imageUrl: selectedImage || undefined,
+          medicines: medicinesPayload,
+        },
+        allowDuplicate
+      );
+
+      // Schedule local notifications for each returned medicine
+      if (savedPrescription && savedPrescription.medicines) {
+        for (const med of savedPrescription.medicines) {
+          await reminderService.scheduleMedicineReminders(med);
+        }
+      }
+
+      // Synchronize medicine store, today logs, and adherence immediately
+      await Promise.allSettled([
+        useMedicineStore.getState().fetchMedicines(),
+        useMedicineStore.getState().fetchTodayLogs(),
+        useMedicineStore.getState().fetchAdherence(),
+      ]);
+
+      voiceService.speakStep('SAVED', language);
+      Alert.alert(t.prescriptionSavedAlert, t.prescriptionSavedMsg);
+      resetState();
+      (onSaved || onSuccess)?.();
+      onClose();
+    } catch (error: any) {
+      console.warn('Failed to save prescription:', error);
+
+      // The backend refuses to store the same prescription twice; ask the patient
+      // before creating a deliberate copy.
+      if (prescriptionApi.isDuplicatePrescriptionError(error)) {
+        Alert.alert(t.duplicateTitle, t.duplicateMsg, [
+          { text: t.backToCapture, style: 'cancel' },
+          { text: t.saveAnyway, onPress: () => persistPrescription(true) },
+        ]);
+        return;
+      }
+
+      Alert.alert(
+        t.saveFailedAlert,
+        error?.response?.data?.message || t.saveFailedMsg
+      );
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleConfirmAndSave = async () => {
     if (medicines.length === 0) {
       Alert.alert(
@@ -281,78 +509,30 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
       return;
     }
 
-    setIsProcessing(true);
-    setProcessingStage(language === 'bn' ? 'সংরক্ষণ করা হচ্ছে...' : 'Saving prescription and reminders...');
-    try {
-      const medicinesPayload = medicines.map((med) => {
-        const timing = med.timing && med.timing.length > 0 ? med.timing : ['morning'];
-        const schedules = timing.map((timeLabel) => {
-          let time = '08:00 AM';
-          let label: 'MORNING' | 'AFTERNOON' | 'EVENING' | 'NIGHT' | 'CUSTOM' = 'MORNING';
-
-          if (timeLabel.toLowerCase().includes('afternoon') || timeLabel.toLowerCase().includes('noon')) {
-            time = '02:00 PM';
-            label = 'AFTERNOON';
-          } else if (timeLabel.toLowerCase().includes('night') || timeLabel.toLowerCase().includes('dinner')) {
-            time = '10:00 PM';
-            label = 'NIGHT';
-          } else if (timeLabel.toLowerCase().includes('evening')) {
-            time = '06:00 PM';
-            label = 'EVENING';
-          }
-
-          return {
-            time,
-            label,
-            dosageAmount: `1 ${med.form ? med.form.charAt(0) + med.form.slice(1).toLowerCase() : 'Tablet'}`,
-            foodInstruction: med.foodInstruction || 'AFTER_MEAL',
-            isEnabled: true,
-          };
-        });
-
-        return {
-          name: med.name.trim() || (language === 'bn' ? 'প্রেসক্রিপশন ওষুধ' : 'Prescribed Medicine'),
-          genericName: med.genericName,
-          dose: med.dose || '500mg',
-          form: med.form || 'TABLET',
-          frequency: med.frequency || (schedules.length === 3 ? 'THRICE_DAILY' : schedules.length === 2 ? 'TWICE_DAILY' : 'ONCE_DAILY'),
-          foodInstruction: med.foodInstruction || 'AFTER_MEAL',
-          startDate: prescriptionDate || new Date().toISOString().split('T')[0],
-          durationDays: med.durationDays || 5,
-          instructions: `${med.foodInstruction || 'After meal'}, Duration: ${med.duration || '5 days'}`,
-          isActive: true,
-          schedules,
-        };
-      });
-
-      const savedPrescription = await prescriptionApi.createPrescription({
-        doctorName: doctorName || 'Dr. Prescribing Physician',
-        hospitalOrClinic: hospitalOrClinic || 'Health Clinic',
-        prescriptionDate: prescriptionDate || new Date().toISOString().split('T')[0],
-        diagnosis: diagnosis || 'Prescription digitalized via Meditalk AI',
-        rawOcrText: rawOcrText || (ocrDraft?.rawOcrText),
-        imageUrl: selectedImage || undefined,
-        medicines: medicinesPayload,
-      });
-
-      // Schedule local notifications for each returned medicine
-      if (savedPrescription && savedPrescription.medicines) {
-        for (const med of savedPrescription.medicines) {
-          await reminderService.scheduleMedicineReminders(med);
-        }
-      }
-
-      voiceService.speakStep('SAVED', language);
-      Alert.alert(t.prescriptionSavedAlert, t.prescriptionSavedMsg);
-      resetState();
-      (onSaved || onSuccess)?.();
-      onClose();
-    } catch (error: any) {
-      console.warn('Failed to save prescription:', error);
-      Alert.alert(t.saveFailedAlert, t.saveFailedMsg);
-    } finally {
-      setIsProcessing(false);
+    if (!doctorName.trim()) {
+      Alert.alert(
+        language === 'bn' ? 'চিকিৎসকের নাম প্রয়োজন' : 'Doctor name required',
+        language === 'bn'
+          ? 'প্রেসক্রিপশনে লেখা চিকিৎসকের নাম লিখুন। মেডিটক এটি অনুমান করে বসায় না।'
+          : "Enter the prescribing doctor's name as written on the prescription. MediTalk does not guess it."
+      );
+      return;
     }
+
+    // Medical safety: we never invent a name, dose or schedule to make the form valid.
+    const incomplete = medicines.find(
+      (med) =>
+        !med.name?.trim() ||
+        !med.dose?.trim() ||
+        !med.dosePattern?.trim() ||
+        buildScheduleSlots(med.dosePattern, med.form, med.foodInstruction).length === 0
+    );
+    if (incomplete) {
+      Alert.alert(t.missingFieldsAlert, t.missingFieldsMsg);
+      return;
+    }
+
+    await persistPrescription(false);
   };
 
   const getFoodOptions = () => [
@@ -533,7 +713,23 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
                       size="sm"
                     />
                   )}
-                  <Badge label="Preprocessed" status="PRIMARY" size="sm" />
+                  {/* Makes OCR vs AI vs user-confirmed data explicit (medical safety). */}
+                  <Badge
+                    label={`${t.extractionSourceLabel}: ${
+                      ocrDraft.extractionSource === 'gemini' ? t.extractionGemini : t.extractionRuleBased
+                    }`}
+                    status={ocrDraft.extractionSource === 'gemini' ? 'PRIMARY' : 'WARNING'}
+                    size="sm"
+                  />
+                  {!!ocrDraft.ocrEngine && (
+                    <Badge label={`${t.ocrEngineLabel}: ${ocrDraft.ocrEngine}`} status="DEFAULT" size="sm" />
+                  )}
+                </View>
+              )}
+
+              {!!ocrDraft?.aiNotes && (
+                <View style={styles.aiNotesBox}>
+                  <Text style={styles.aiNotesText}>{ocrDraft.aiNotes}</Text>
                 </View>
               )}
 
@@ -644,7 +840,7 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
                       <Text style={styles.fieldSubLabel}>{t.strengthDose}</Text>
                       <TextInput
                         style={styles.textInput}
-                        value={med.dose}
+                        value={med.dose ?? ''}
                         onChangeText={(val) => updateMedicineField(idx, 'dose', val)}
                         placeholder="500mg, 20mg, 10ml"
                         placeholderTextColor={palette.slate400}
@@ -654,7 +850,7 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
                       <Text style={styles.fieldSubLabel}>{t.duration}</Text>
                       <TextInput
                         style={styles.textInput}
-                        value={med.duration || '5 days'}
+                        value={med.duration ?? ''}
                         onChangeText={(val) => updateMedicineField(idx, 'duration', val)}
                         placeholder="e.g. 5 days, 1 month"
                         placeholderTextColor={palette.slate400}
@@ -665,7 +861,7 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
                   {/* Dose Pattern Selector (1+1+1, 1+0+1, etc.) */}
                   <Text style={styles.fieldSubLabel}>{t.dosePattern}</Text>
                   <View style={styles.pillSelectorRow}>
-                    {DOSE_PATTERNS.map((pattern) => (
+                    {dosePatternOptions(med.dosePattern).map((pattern) => (
                       <TouchableOpacity
                         key={pattern}
                         style={[
@@ -710,23 +906,37 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
                     ))}
                   </View>
 
-                  {/* Reminder Times Summary */}
+                  {/* Reminder Times Summary — only shows times the prescription actually states */}
                   <View style={styles.schedulePreviewBox}>
                     <Clock size={14} color={palette.teal700} />
                     <Text style={styles.schedulePreviewText}>
                       {t.reminders}{' '}
-                      {(med.timing || ['morning'])
-                        .map((slot) => {
-                          if (slot === 'morning') return '08:00 AM';
-                          if (slot === 'afternoon') return '02:00 PM';
-                          if (slot === 'evening') return '06:00 PM';
-                          return '10:00 PM';
-                        })
-                        .join(', ')}
+                      {(() => {
+                        const stated = buildScheduleSlots(med.dosePattern, med.form, med.foodInstruction);
+                        if (stated.length > 0) {
+                          return stated.map((slot) => slot.time).join(', ');
+                        }
+                        // Transparent about the fallback instead of silently inventing a time.
+                        return language === 'bn'
+                          ? '08:00 AM (ডিফল্ট — প্রেসক্রিপশনে লেখা নেই)'
+                          : '08:00 AM (default — not stated on the prescription)';
+                      })()}
                     </Text>
                   </View>
                 </Card>
               ))}
+
+              {/* Retry the scan without re-taking the photo */}
+              {!!selectedImage && (
+                <TouchableOpacity
+                  style={styles.retryOcrBtn}
+                  onPress={() => executeOcrPipeline(selectedImage)}
+                  disabled={isProcessing}
+                >
+                  <RefreshCw size={16} color={palette.teal700} />
+                  <Text style={styles.retryOcrText}>{t.retryOcr}</Text>
+                </TouchableOpacity>
+              )}
 
               {/* Action Buttons */}
               <View style={styles.confirmActionsRow}>
@@ -955,7 +1165,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  aiNotesBox: {
+    backgroundColor: palette.slate100,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm,
     marginBottom: spacing.md,
+  },
+  aiNotesText: {
+    fontSize: typography.sizes.xs,
+    color: palette.slate600,
   },
   draftCard: {
     marginBottom: spacing.md,
@@ -1134,6 +1354,23 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     fontWeight: '600',
     color: palette.teal800,
+  },
+  retryOcrBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    backgroundColor: palette.teal50,
+    borderWidth: 1,
+    borderColor: palette.teal200,
+    borderRadius: borderRadius.md,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.md,
+  },
+  retryOcrText: {
+    fontSize: typography.sizes.xs + 1,
+    fontWeight: '700',
+    color: palette.teal700,
   },
   confirmActionsRow: {
     flexDirection: 'row',

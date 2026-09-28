@@ -20,7 +20,8 @@ export interface MedicalReport {
   hospitalOrLab: string;
   notes?: string;
   fileUrl: string;
-  fileType: 'IMAGE' | 'PDF';
+  /** NONE means the report was recorded without an attached file. */
+  fileType: 'IMAGE' | 'PDF' | 'NONE';
   fileName: string;
   fileSizeBytes?: number;
   createdAt: string;

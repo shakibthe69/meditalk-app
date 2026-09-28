@@ -13,7 +13,30 @@ import { Button, Input } from '../common';
 import { useMedicineStore, useSettingsStore } from '../../store';
 import { FoodInstruction, DoseFrequency } from '../../types';
 import { voiceService } from '../../services/voice';
-import { X, Pill, Languages, Volume2 } from 'lucide-react-native';
+import { X, Pill, Clock, Plus } from 'lucide-react-native';
+
+/** Accepts "8:00 PM", "08:00 pm" or "20:00" and returns a normalised "08:00 PM". */
+export const normalizeTimeInput = (raw: string): string | null => {
+  const match = raw.trim().toUpperCase().match(/^(\d{1,2}):([0-5]\d)\s*(AM|PM)?$/);
+  if (!match) return null;
+
+  let hour = parseInt(match[1], 10);
+  const minute = match[2];
+  const meridiem = match[3] as 'AM' | 'PM' | undefined;
+
+  if (meridiem) {
+    if (hour < 1 || hour > 12) return null;
+    if (meridiem === 'PM' && hour !== 12) hour += 12;
+    if (meridiem === 'AM' && hour === 12) hour = 0;
+  } else {
+    if (hour > 23) return null;
+  }
+
+  const displayHour24 = hour;
+  const displayMeridiem = displayHour24 >= 12 ? 'PM' : 'AM';
+  const displayHour12 = displayHour24 % 12 === 0 ? 12 : displayHour24 % 12;
+  return `${String(displayHour12).padStart(2, '0')}:${minute} ${displayMeridiem}`;
+};
 
 interface AddMedicineModalProps {
   visible: boolean;
@@ -40,6 +63,9 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
   const [instructions, setInstructions] = useState('');
   const [morningTime, setMorningTime] = useState('08:00 AM');
   const [nightTime, setNightTime] = useState('10:00 PM');
+  const [customTimes, setCustomTimes] = useState<string[]>([]);
+  const [timeInput, setTimeInput] = useState('');
+  const [timeError, setTimeError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -52,6 +78,25 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
     }
   }, [visible]);
 
+  const handleAddCustomTime = () => {
+    const normalized = normalizeTimeInput(timeInput);
+    if (!normalized) {
+      setTimeError(
+        language === 'bn'
+          ? 'সময় লিখুন — যেমন 08:00 AM অথবা 20:00'
+          : 'Enter a time like 08:00 AM or 20:00'
+      );
+      return;
+    }
+    if (customTimes.includes(normalized)) {
+      setTimeError(language === 'bn' ? 'এই সময় ইতিমধ্যে যোগ করা আছে' : 'That time is already added');
+      return;
+    }
+    setCustomTimes((prev) => [...prev, normalized].sort());
+    setTimeInput('');
+    setTimeError('');
+  };
+
   const handleSave = async () => {
     if (!name.trim() || !dose.trim()) {
       Alert.alert(
@@ -63,40 +108,55 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
 
     setIsSaving(true);
     try {
-      const schedules: Array<{
+      const dosageAmount = `1 ${dose.toLowerCase().includes('ml') ? 'Spoon' : 'Tablet'}`;
+
+      let schedules: Array<{
         time: string;
         label: 'MORNING' | 'AFTERNOON' | 'EVENING' | 'NIGHT' | 'CUSTOM';
         dosageAmount: string;
         foodInstruction: any;
         isEnabled: boolean;
-      }> = [
-        {
-          time: morningTime,
-          label: 'MORNING',
-          dosageAmount: `1 ${dose.toLowerCase().includes('ml') ? 'Spoon' : 'Tablet'}`,
-          foodInstruction,
-          isEnabled: true,
-        },
-      ];
+      }> = [];
 
-      if (frequency === 'TWICE_DAILY' || frequency === 'THRICE_DAILY') {
-        schedules.push({
-          time: nightTime,
-          label: 'NIGHT' as const,
-          dosageAmount: `1 ${dose.toLowerCase().includes('ml') ? 'Spoon' : 'Tablet'}`,
+      if (customTimes.length > 0) {
+        // Fully custom reminder times chosen by the patient.
+        schedules = customTimes.map((time) => ({
+          time,
+          label: 'CUSTOM' as const,
+          dosageAmount,
           foodInstruction,
           isEnabled: true,
-        });
-      }
+        }));
+      } else {
+        schedules = [
+          {
+            time: morningTime,
+            label: 'MORNING',
+            dosageAmount,
+            foodInstruction,
+            isEnabled: true,
+          },
+        ];
 
-      if (frequency === 'THRICE_DAILY') {
-        schedules.push({
-          time: '02:00 PM',
-          label: 'AFTERNOON' as const,
-          dosageAmount: `1 ${dose.toLowerCase().includes('ml') ? 'Spoon' : 'Tablet'}`,
-          foodInstruction,
-          isEnabled: true,
-        });
+        if (frequency === 'TWICE_DAILY' || frequency === 'THRICE_DAILY') {
+          schedules.push({
+            time: nightTime,
+            label: 'NIGHT' as const,
+            dosageAmount,
+            foodInstruction,
+            isEnabled: true,
+          });
+        }
+
+        if (frequency === 'THRICE_DAILY') {
+          schedules.push({
+            time: '02:00 PM',
+            label: 'AFTERNOON' as const,
+            dosageAmount,
+            foodInstruction,
+            isEnabled: true,
+          });
+        }
       }
 
       await addMedicine({
@@ -135,6 +195,9 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
       setName('');
       setGenericName('');
       setInstructions('');
+      setCustomTimes([]);
+      setTimeInput('');
+      setTimeError('');
     } catch (e) {
       console.warn('Failed to save medicine:', e);
       Alert.alert(
@@ -231,6 +294,50 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
             ))}
           </View>
 
+          {/* Custom reminder times — overrides the frequency defaults */}
+          <Text style={styles.sectionLabel}>
+            {language === 'bn' ? 'কাস্টম রিমাইন্ডার সময়' : 'Custom Reminder Times'}
+          </Text>
+          <Text style={styles.sectionHint}>
+            {language === 'bn'
+              ? 'নিচে আপনার পছন্দের সময় যোগ করুন। যোগ করলে সেটিই নোটিফিকেশন পাঠাবে (বাদ দিলে ফ্রিকোয়েন্সি অনুযায়ী সময় ব্যবহার হবে)।'
+              : 'Add your own times below. When added, reminders fire exactly at these times (otherwise the frequency defaults are used).'}
+          </Text>
+
+          {customTimes.length > 0 ? (
+            <View style={styles.timeChipRow}>
+              {customTimes.map((time) => (
+                <View key={time} style={styles.timeChip}>
+                  <Clock size={13} color={palette.teal700} />
+                  <Text style={styles.timeChipText}>{time}</Text>
+                  <TouchableOpacity
+                    onPress={() => setCustomTimes((prev) => prev.filter((t) => t !== time))}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <X size={13} color={palette.slate500} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          <View style={styles.timeInputRow}>
+            <Input
+              label={language === 'bn' ? 'সময় (যেমন 08:00 PM)' : 'Time (e.g. 08:00 PM)'}
+              placeholder={language === 'bn' ? '08:00 AM বা 20:00' : '08:00 AM or 20:00'}
+              value={timeInput}
+              onChangeText={(text) => {
+                setTimeInput(text);
+                if (timeError) setTimeError('');
+              }}
+              containerStyle={{ flex: 1 }}
+            />
+            <TouchableOpacity style={styles.addTimeBtn} activeOpacity={0.8} onPress={handleAddCustomTime}>
+              <Plus size={18} color={palette.white} />
+            </TouchableOpacity>
+          </View>
+          {timeError ? <Text style={styles.timeError}>{timeError}</Text> : null}
+
           <Input
             label={language === 'bn' ? 'বিশেষ নির্দেশাবলি' : 'Special Instructions'}
             placeholder="e.g. ভরা পেটে প্রচুর পানি দিয়ে সেবন করুন"
@@ -295,6 +402,53 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.sm,
     marginBottom: spacing.base,
+  },
+  sectionHint: {
+    fontSize: typography.sizes.xs,
+    color: palette.slate500,
+    marginBottom: spacing.sm,
+    lineHeight: 17,
+  },
+  timeChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  timeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: palette.teal50,
+    borderWidth: 1,
+    borderColor: palette.teal200,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: borderRadius.full,
+  },
+  timeChipText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '700',
+    color: palette.teal800,
+  },
+  timeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: spacing.sm,
+  },
+  addTimeBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: borderRadius.md,
+    backgroundColor: palette.teal600,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  timeError: {
+    fontSize: typography.sizes.xs,
+    color: palette.danger600,
+    marginBottom: spacing.sm,
   },
   chip: {
     paddingHorizontal: spacing.md,

@@ -12,7 +12,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { palette, typography, spacing, borderRadius } from '../../src/theme';
-import { Card, Badge, DiseaseDetailModal } from '../../src/components';
+import { Card, Badge, DiseaseDetailModal, AiChatPanel } from '../../src/components';
 import { useSettingsStore } from '../../src/store/useSettingsStore';
 import { diseaseApi } from '../../src/services/api/diseaseApi';
 import { DiseaseCategory, DiseaseSummary } from '../../src/types';
@@ -35,10 +35,14 @@ import {
   Flame,
   Info,
   CheckCircle2,
+  Bot,
 } from 'lucide-react-native';
 
 export default function GuideScreen() {
   const { language, setLanguage, t, voiceEnabled, toggleVoice } = useSettingsStore();
+
+  // "Health Chat" opens on the AI assistant; the directory stays one tap away.
+  const [mode, setMode] = useState<'chat' | 'directory'>('chat');
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
@@ -204,7 +208,11 @@ export default function GuideScreen() {
             <View>
               <Text style={styles.headerTitle}>{t.healthGuide}</Text>
               <Text style={styles.headerSubtitle}>
-                {language === 'bn' ? 'বিশ্বস্ত স্বাস্থ্য ও রোগ নির্দেশিকা' : 'Evidence-Based Disease & Medical Directory'}
+                {mode === 'chat'
+                  ? t.aiChatSubtitle
+                  : language === 'bn'
+                    ? 'বিশ্বস্ত স্বাস্থ্য ও রোগ নির্দেশিকা'
+                    : 'Evidence-based disease & medical directory'}
               </Text>
             </View>
           </View>
@@ -239,30 +247,65 @@ export default function GuideScreen() {
           </View>
         </View>
 
-        {/* Live Search Bar */}
-        <View style={styles.searchBarWrapper}>
-          <Search size={18} color={palette.slate400} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder={t.searchDiseasePlaceholder}
-            placeholderTextColor={palette.slate400}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
-            autoCapitalize="none"
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setSearchQuery('')}
-              style={styles.clearSearchBtn}
-            >
-              <X size={16} color={palette.slate500} />
-            </TouchableOpacity>
-          )}
+        {/* Mode switch: AI chat assistant ↔ disease directory */}
+        <View style={styles.modeRow}>
+          <TouchableOpacity
+            style={[styles.modePill, mode === 'chat' && styles.modePillActive]}
+            activeOpacity={0.8}
+            onPress={() => setMode('chat')}
+          >
+            <Bot size={14} color={mode === 'chat' ? palette.white : palette.teal700} />
+            <Text style={[styles.modePillText, mode === 'chat' && styles.modePillTextActive]}>
+              {t.askAiAction}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modePill, mode === 'directory' && styles.modePillActive]}
+            activeOpacity={0.8}
+            onPress={() => setMode('directory')}
+          >
+            <BookOpen size={14} color={mode === 'directory' ? palette.white : palette.teal700} />
+            <Text style={[styles.modePillText, mode === 'directory' && styles.modePillTextActive]}>
+              {t.directoryAction}
+            </Text>
+          </TouchableOpacity>
         </View>
+
+        {/* Live Search Bar (directory mode only) */}
+        {mode === 'directory' ? (
+          <View style={styles.searchBarWrapper}>
+            <Search size={18} color={palette.slate400} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder={t.searchDiseasePlaceholder}
+              placeholderTextColor={palette.slate400}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              autoCapitalize="none"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery('')}
+                style={styles.clearSearchBtn}
+              >
+                <X size={16} color={palette.slate500} />
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : null}
       </View>
 
-      {/* Main Content ScrollView */}
+      {/* AI health chat assistant */}
+      {mode === 'chat' ? (
+        <AiChatPanel
+          onOpenDisease={(id) => {
+            setMode('directory');
+            setSelectedDiseaseId(id);
+            setIsDetailModalOpen(true);
+          }}
+        />
+      ) : (
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -486,6 +529,7 @@ export default function GuideScreen() {
           </>
         )}
       </ScrollView>
+      )}
 
       {/* Complete Rich Disease Detail Modal */}
       {selectedDiseaseId !== null && (
@@ -622,6 +666,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  modePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: palette.teal50,
+    borderWidth: 1,
+    borderColor: palette.teal200,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+    borderRadius: borderRadius.full,
+  },
+  modePillActive: {
+    backgroundColor: palette.teal600,
+    borderColor: palette.teal600,
+  },
+  modePillText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '700',
+    color: palette.teal700,
+  },
+  modePillTextActive: {
+    color: palette.white,
   },
   controlPill: {
     flexDirection: 'row',

@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { apiClient, getApiBaseUrl } from './apiClient';
 import { MedicalReport } from '../../types';
 
@@ -16,10 +17,9 @@ export const reportApi = {
     await apiClient.delete(`/api/reports/${id}`);
   },
 
-  uploadFile: async (fileUri: string, fileName: string, mimeType: string = 'image/jpeg'): Promise<{ fileUrl: string; fileName: string; fileSizeBytes: number }> => {
+  uploadFile: async (fileUri: string, fileName: string = 'medical_report.jpg', mimeType: string = 'image/jpeg'): Promise<{ fileUrl: string; fileName: string; fileSizeBytes: number }> => {
     const formData = new FormData();
-    // For Web vs Native FormData handling
-    if (fileUri.startsWith('data:') || fileUri.startsWith('blob:') || typeof window !== 'undefined') {
+    if (Platform.OS === 'web' || fileUri.startsWith('data:') || fileUri.startsWith('blob:')) {
       const response = await fetch(fileUri);
       const blob = await response.blob();
       formData.append('file', blob, fileName);
@@ -38,7 +38,6 @@ export const reportApi = {
     });
 
     const data = res.data.data;
-    // Prepend full URL if relative
     if (data.fileUrl && data.fileUrl.startsWith('/')) {
       data.fileUrl = getApiBaseUrl() + data.fileUrl;
     }

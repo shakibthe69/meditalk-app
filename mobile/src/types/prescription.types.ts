@@ -3,12 +3,13 @@ import { Medicine, MedicineSchedule, FoodInstruction } from './medicine.types';
 export interface ExtractedMedicine {
   name: string;
   genericName?: string;
-  dose: string;
-  form?: string;
-  frequency: string;
-  dosePattern?: string; // e.g. "1+1+1", "1+0+1"
+  /** null / empty when the prescription did not state a strength — never auto-filled. */
+  dose: string | null;
+  form?: string | null;
+  frequency: string | null;
+  dosePattern?: string | null; // e.g. "1+1+1", "1+0+1"
   timing: string[];
-  foodInstruction: string;
+  foodInstruction: string | null;
   duration?: string;
   durationDays?: number;
   isUncertain?: boolean;
@@ -50,6 +51,12 @@ export interface PrescriptionOcrDraft {
   confidenceScore?: number;
   preprocessingSummary?: string;
   notes?: string;
+  /** "gemini" when the draft was structured by the prescription AI, otherwise "rule-based". */
+  extractionSource?: 'gemini' | 'rule-based' | string;
+  /** Which OCR provider read the image ("ocr.space", "google-cloud-vision", ...). */
+  ocrEngine?: string;
+  /** Human readable notes about what happened while reading the prescription. */
+  aiNotes?: string;
   requiresUserVerification?: boolean;
   safetyDisclaimer?: string;
   imageUri?: string;

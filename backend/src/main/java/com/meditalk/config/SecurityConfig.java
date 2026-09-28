@@ -80,9 +80,19 @@ public class SecurityConfig {
                                 "/api/auth/**",
                                 "/api/health/**",
                                 "/api/diseases/**",
+                                "/api/doctor-posts/**",
+                                "/api/emergency/**",
+                                "/api/ai/**",
+                                "/ws/**",
                                 "/uploads/**",
                                 "/error"
                         ).permitAll()
+                        // Prescription scanning/analysis and health-chat context are
+                        // patient-specific, so they require a valid JWT.
+                        // Admin API is ADMIN-only at the filter level as well as
+                        // behind @PreAuthorize, so a missing annotation can never
+                        // expose patient monitoring data.
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())

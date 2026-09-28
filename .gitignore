@@ -1,0 +1,44 @@
+# ---------------------------------------------------------------------------
+# Secrets — API keys must never be committed. Copy the example files instead:
+#   backend/.env.example  ->  backend/.env (or export the variables)
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local service account / credential files
+*credentials*.json
+service-account*.json
+
+# ---------------------------------------------------------------------------
+# Logs
+# ---------------------------------------------------------------------------
+*.log
+logs/
+
+# ---------------------------------------------------------------------------
+# Backend build output and runtime data
+# ---------------------------------------------------------------------------
+backend/target/
+backend/uploads/
+backend/data/
+backend/*.log
+.mvn/wrapper/maven-wrapper.jar
+backend/.mvn/wrapper/maven-wrapper.jar
+
+# ---------------------------------------------------------------------------
+# Python helper scripts
+# ---------------------------------------------------------------------------
+__pycache__/
+*.pyc
+
+# ---------------------------------------------------------------------------
+# Misc / temp files
+# ---------------------------------------------------------------------------
+tatus
+verify_*.mjs
+**/verify_*.mjs
+node_modules/

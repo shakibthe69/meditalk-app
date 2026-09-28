@@ -15,6 +15,7 @@ import { useMedicineStore } from '../../src/store';
 import { useSettingsStore } from '../../src/store/useSettingsStore';
 import { palette, typography, spacing, borderRadius } from '../../src/theme';
 import { Card, Badge, Header, AddMedicineModal } from '../../src/components';
+import { voiceService } from '../../src/services/voice';
 import {
   Search,
   Plus,
@@ -48,6 +49,12 @@ export default function MedicinesScreen() {
   const handleDelete = (id: string, name: string) => {
     const doDelete = async () => {
       await deleteMedicine(id);
+      voiceService.speak(
+        language === 'bn'
+          ? `${name} ওষুধ তালিকা থেকে মুছে ফেলা হয়েছে`
+          : `${name} removed from your medicine list`,
+        language
+      );
     };
 
     if (Platform.OS === 'web') {

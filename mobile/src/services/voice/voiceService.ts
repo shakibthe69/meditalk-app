@@ -124,7 +124,12 @@ class VoiceService {
   }
 
   public speakMedicineReviewSummary(
-    medicines: Array<{ name: string; dose?: string; dosePattern?: string; foodInstruction?: string }>,
+    medicines: Array<{
+      name: string;
+      dose?: string | null;
+      dosePattern?: string | null;
+      foodInstruction?: string | null;
+    }>,
     lang?: AppLanguage
   ): void {
     const activeLang = lang || useSettingsStore.getState().language;

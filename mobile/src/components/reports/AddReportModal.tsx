@@ -43,8 +43,9 @@ export const AddReportModal: React.FC<AddReportModalProps> = ({
 }) => {
   const [title, setTitle] = useState('');
   const [type, setType] = useState<ReportType>('BLOOD_TEST');
-  const [hospitalOrLab, setHospitalOrLab] = useState('National Diagnostic Lab');
-  const [doctorName, setDoctorName] = useState('Dr. Rahman, MD');
+  // Never pre-fill clinical facts: whatever the patient leaves blank is stored as blank.
+  const [hospitalOrLab, setHospitalOrLab] = useState('');
+  const [doctorName, setDoctorName] = useState('');
   const [notes, setNotes] = useState('');
   const [fileUri, setFileUri] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -63,48 +64,93 @@ export const AddReportModal: React.FC<AddReportModalProps> = ({
     }
   };
 
+  const resetForm = () => {
+    setTitle('');
+    setNotes('');
+    setFileUri(null);
+    setHospitalOrLab('');
+    setDoctorName('');
+  };
+
+  /**
+   * Writes the report to the database. The backend requires a file URL column, so a
+   * report saved without an attachment stores an empty URL and fileType NONE instead
+   * of a placeholder pointing at an unrelated image.
+   */
+  const persistReport = async (attachment: {
+    fileUrl: string;
+    fileName: string;
+    fileType: 'IMAGE' | 'PDF' | 'NONE';
+    fileSizeBytes?: number;
+  }) => {
+    setIsSaving(true);
+    try {
+      await reportApi.createReport({
+        title: title.trim(),
+        type,
+        testDate: new Date().toISOString().split('T')[0],
+        hospitalOrLab: hospitalOrLab.trim() || undefined,
+        doctorName: doctorName.trim() || undefined,
+        notes: notes.trim() || undefined,
+        fileUrl: attachment.fileUrl,
+        fileType: attachment.fileType,
+        fileName: attachment.fileName || undefined,
+        fileSizeBytes: attachment.fileSizeBytes,
+      });
+
+      Alert.alert('Report Saved', 'Medical test report saved to your records!');
+      resetForm();
+      (onSaved || onSuccess)?.();
+      onClose();
+    } catch (e: any) {
+      console.warn('Failed to save medical report:', e);
+      Alert.alert(
+        'Could Not Save Report',
+        e?.response?.data?.message ||
+          'The report was not saved. Please check your connection and try again.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!title.trim()) {
       Alert.alert('Validation Error', 'Please enter a title for this medical report.');
       return;
     }
+    if (isSaving) return;
+
+    const safeName = `${title.trim().replace(/[^a-zA-Z0-9]+/g, '_') || 'medical_report'}.jpg`;
+
+    // Nothing attached: save the record on its own.
+    if (!fileUri) {
+      await persistReport({ fileUrl: '', fileName: '', fileType: 'NONE' });
+      return;
+    }
 
     setIsSaving(true);
     try {
-      let uploadedFileUrl = 'https://images.unsplash.com/photo-1579154204601-01588f351e67?auto=format&fit=crop&w=800&q=80';
-      let fileName = 'medical_report.jpg';
-
-      if (fileUri) {
-        try {
-          const uploadRes = await reportApi.uploadFile(fileUri, `${title.replace(/\s+/g, '_')}.jpg`);
-          uploadedFileUrl = uploadRes.fileUrl;
-          fileName = uploadRes.fileName;
-        } catch (upErr) {
-          console.warn('Could not upload file to backend storage, using preview link:', upErr);
-        }
-      }
-
-      await reportApi.createReport({
-        title,
-        type,
-        testDate: new Date().toISOString().split('T')[0],
-        hospitalOrLab,
-        doctorName,
-        notes: notes || 'Lab report recorded and verified in Meditalk.',
-        fileUrl: uploadedFileUrl,
+      const upload = await reportApi.uploadFile(fileUri, safeName);
+      await persistReport({
+        fileUrl: upload.fileUrl ?? '',
+        fileName: upload.fileName ?? safeName,
         fileType: 'IMAGE',
-        fileName,
+        fileSizeBytes: upload.fileSizeBytes,
       });
-
-      Alert.alert('Report Saved', 'Medical test report saved to your records!');
-      (onSaved || onSuccess)?.();
-      onClose();
-      // Reset
-      setTitle('');
-      setNotes('');
-      setFileUri(null);
-    } catch (e) {
-      Alert.alert('Error', 'Failed to save medical report.');
+    } catch (uploadError: any) {
+      console.warn('Report image upload failed:', uploadError);
+      Alert.alert(
+        'Image Upload Failed',
+        'The selected image could not be uploaded, so the report was not saved yet. You can retry, or save the report details now and attach the image later.',
+        [
+          { text: 'Keep Editing', style: 'cancel' },
+          {
+            text: 'Save Without Image',
+            onPress: () => persistReport({ fileUrl: '', fileName: '', fileType: 'NONE' }),
+          },
+        ]
+      );
     } finally {
       setIsSaving(false);
     }

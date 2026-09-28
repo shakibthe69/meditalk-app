@@ -59,13 +59,13 @@ public class MedicalReportService {
                 .doctor(doctor)
                 .doctorName(request.getDoctorName() != null ? request.getDoctorName() : (doctor != null ? doctor.getName() : null))
                 .title(request.getTitle())
-                .type(request.getType().toUpperCase())
-                .testDate(request.getTestDate())
+                .type(request.getType() != null ? request.getType().toUpperCase() : "GENERAL")
+                .testDate(request.getTestDate() != null ? request.getTestDate() : java.time.LocalDate.now())
                 .hospitalOrLab(request.getHospitalOrLab())
                 .notes(request.getNotes())
-                .fileUrl(request.getFileUrl())
-                .fileType(request.getFileType() != null ? request.getFileType().toUpperCase() : "IMAGE")
-                .fileName(request.getFileName())
+                .fileUrl(normalizeFileUrl(request.getFileUrl()))
+                .fileType(request.getFileType() != null ? request.getFileType().toUpperCase() : "NONE")
+                .fileName(normalizeFileName(request.getFileName()))
                 .fileSizeBytes(request.getFileSizeBytes())
                 .build();
 
@@ -97,6 +97,19 @@ public class MedicalReportService {
         MedicalReport report = reportRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Report not found with id: " + id));
         reportRepository.delete(report);
+    }
+
+    /**
+     * Reports are often recorded by hand with no attachment. The column is NOT NULL, so
+     * an absent file is stored as an empty URL — never as a link to an unrelated image.
+     */
+    private static String normalizeFileUrl(String fileUrl) {
+        return fileUrl == null ? "" : fileUrl.trim();
+    }
+
+    /** The file name column is also NOT NULL; an unattached report stores an empty name. */
+    private static String normalizeFileName(String fileName) {
+        return fileName == null ? "" : fileName.trim();
     }
 
     public MedicalReportResponse mapToResponse(MedicalReport r) {

@@ -15,6 +15,10 @@ public class OcrParseResponse {
     private double confidenceScore = 0.95;
     private String preprocessingSummary;
     private String notes;
+    /** "gemini" when structured by the prescription AI, "rule-based" when parsed deterministically. */
+    private String extractionSource = "rule-based";
+    /** Which OCR provider read the image. */
+    private String ocrEngine;
     private boolean requiresUserVerification = true;
     private String safetyDisclaimer;
 
@@ -53,6 +57,12 @@ public class OcrParseResponse {
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
 
+    public String getExtractionSource() { return extractionSource; }
+    public void setExtractionSource(String extractionSource) { this.extractionSource = extractionSource; }
+
+    public String getOcrEngine() { return ocrEngine; }
+    public void setOcrEngine(String ocrEngine) { this.ocrEngine = ocrEngine; }
+
     public boolean isRequiresUserVerification() { return requiresUserVerification; }
     public void setRequiresUserVerification(boolean requiresUserVerification) { this.requiresUserVerification = requiresUserVerification; }
 
@@ -77,6 +87,8 @@ public class OcrParseResponse {
         public Builder confidenceScore(double confidenceScore) { res.setConfidenceScore(confidenceScore); return this; }
         public Builder preprocessingSummary(String preprocessingSummary) { res.setPreprocessingSummary(preprocessingSummary); return this; }
         public Builder notes(String notes) { res.setNotes(notes); return this; }
+        public Builder extractionSource(String extractionSource) { res.setExtractionSource(extractionSource); return this; }
+        public Builder ocrEngine(String ocrEngine) { res.setOcrEngine(ocrEngine); return this; }
         public Builder requiresUserVerification(boolean requiresUserVerification) { res.setRequiresUserVerification(requiresUserVerification); return this; }
         public Builder safetyDisclaimer(String safetyDisclaimer) { res.setSafetyDisclaimer(safetyDisclaimer); return this; }
 

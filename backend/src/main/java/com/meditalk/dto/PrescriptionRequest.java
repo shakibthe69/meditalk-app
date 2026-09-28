@@ -22,6 +22,11 @@ public class PrescriptionRequest {
     private String notes;
     private String imageUrl;
     private String rawOcrText;
+    /**
+     * Set to true only after the patient has explicitly confirmed that they want to save
+     * a prescription that matches one already in their records.
+     */
+    private Boolean allowDuplicate = false;
     private List<MedicineRequest> medicines = new ArrayList<>();
 
     public PrescriptionRequest() {}
@@ -50,6 +55,9 @@ public class PrescriptionRequest {
     public String getRawOcrText() { return rawOcrText; }
     public void setRawOcrText(String rawOcrText) { this.rawOcrText = rawOcrText; }
 
+    public Boolean getAllowDuplicate() { return allowDuplicate; }
+    public void setAllowDuplicate(Boolean allowDuplicate) { this.allowDuplicate = allowDuplicate; }
+
     public List<MedicineRequest> getMedicines() { return medicines; }
     public void setMedicines(List<MedicineRequest> medicines) { this.medicines = medicines; }
 
@@ -68,6 +76,7 @@ public class PrescriptionRequest {
         public Builder notes(String notes) { req.setNotes(notes); return this; }
         public Builder imageUrl(String imageUrl) { req.setImageUrl(imageUrl); return this; }
         public Builder rawOcrText(String rawOcrText) { req.setRawOcrText(rawOcrText); return this; }
+        public Builder allowDuplicate(Boolean allowDuplicate) { req.setAllowDuplicate(allowDuplicate); return this; }
         public Builder medicines(List<MedicineRequest> medicines) { req.setMedicines(medicines); return this; }
 
         public PrescriptionRequest build() { return req; }

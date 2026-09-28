@@ -45,6 +45,12 @@
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
 
+		<!-- WebSocket for real-time chat, presence and call signalling -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-websocket</artifactId>
+		</dependency>
+
 		<!-- Embedded database for local development -->
 		<dependency>
 			<groupId>com.h2database</groupId>

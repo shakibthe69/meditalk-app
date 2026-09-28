@@ -149,4 +149,60 @@ class OcrAiParserServiceTest {
         assertEquals("UnknownMedName", meds.get(0).getName());
         assertFalse(meds.get(0).getName().isBlank());
     }
+
+    @Test
+    @DisplayName("7. Bangla digits in a dose are read as a real strength")
+    void testBanglaDigitDose() {
+        String rawText = "ডাঃ মোঃ রফিকুল ইসলাম\n" +
+                "ঢাকা সেন্ট্রাল হাসপাতাল\n" +
+                "1. ট্যাব. নাপা ৫০০ মি.গ্রা.\n" +
+                "   ১+০+১ - খাবারের আগে - ৭ দিন\n";
+
+        List<ExtractedMedicineDto> meds = parserService.extractMedicines(rawText);
+
+        assertEquals(1, meds.size());
+        ExtractedMedicineDto med = meds.get(0);
+        assertTrue(med.getName().contains("নাপা"));
+        assertEquals("500 মি.গ্রা.", med.getDose());
+        assertEquals("1+0+1", med.getDosePattern());
+        assertEquals("BEFORE_MEAL", med.getFoodInstruction());
+        assertEquals(7, med.getDurationDays());
+        assertEquals(2, med.getSchedules().size());
+    }
+
+    @Test
+    @DisplayName("8. Reminder slot dosage follows the stated pattern (2+0+1)")
+    void testScheduleDosageFollowsStatedPattern() {
+        ExtractedMedicineDto med = ExtractedMedicineDto.builder()
+                .name("Napa")
+                .dose("500mg")
+                .form("TABLET")
+                .dosePattern("2+0+1")
+                .foodInstruction("AFTER_MEAL")
+                .build();
+
+        parserService.buildSchedulesForMedicine(med);
+
+        assertEquals(2, med.getSchedules().size());
+        assertEquals("2 Tablets", med.getSchedules().get(0).getDosageAmount());
+        assertEquals("08:00 AM", med.getSchedules().get(0).getTime());
+        assertEquals("1 Tablet", med.getSchedules().get(1).getDosageAmount());
+        assertEquals("10:00 PM", med.getSchedules().get(1).getTime());
+    }
+
+    @Test
+    @DisplayName("9. No stated schedule produces no invented reminder slots")
+    void testNoStatedScheduleProducesNoSlots() {
+        ExtractedMedicineDto med = ExtractedMedicineDto.builder()
+                .name("Napa")
+                .dose("500mg")
+                .build();
+
+        parserService.buildSchedulesForMedicine(med);
+
+        assertTrue(med.getSchedules().isEmpty(), "a schedule must not be invented when none was stated");
+        assertNull(OcrAiParserService.parseDoseCounts(null));
+        assertNull(OcrAiParserService.parseDoseCounts("as needed"));
+        assertNull(OcrAiParserService.parseDoseCounts("0+0+0"), "all-zero patterns mean no doses");
+    }
 }

@@ -56,6 +56,21 @@ public class User {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    /**
+     * Last time the account was seen active (authenticated request or app
+     * heartbeat). Drives the admin inactivity/follow-up signal. This is a
+     * follow-up indicator only — it is never treated as a medical fact.
+     */
+    private LocalDateTime lastActiveAt;
+
+    /**
+     * Explicit opt-in for automated medication follow-up calls (AI voice, future).
+     * Nullable on purpose: the column is added to an existing table, and existing
+     * rows must not violate a NOT NULL constraint during schema update. New rows
+     * default to false in Java.
+     */
+    private Boolean followUpCallsOptIn = false;
+
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Doctor> doctors = new ArrayList<>();
 
@@ -112,6 +127,12 @@ public class User {
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
+    public LocalDateTime getLastActiveAt() { return lastActiveAt; }
+    public void setLastActiveAt(LocalDateTime lastActiveAt) { this.lastActiveAt = lastActiveAt; }
+
+    public Boolean getFollowUpCallsOptIn() { return followUpCallsOptIn; }
+    public void setFollowUpCallsOptIn(Boolean followUpCallsOptIn) { this.followUpCallsOptIn = followUpCallsOptIn; }
+
     public List<Doctor> getDoctors() { return doctors; }
     public void setDoctors(List<Doctor> doctors) { this.doctors = doctors; }
 
@@ -143,6 +164,8 @@ public class User {
         public Builder allergies(String allergies) { user.setAllergies(allergies); return this; }
         public Builder chronicConditions(String chronicConditions) { user.setChronicConditions(chronicConditions); return this; }
         public Builder role(String role) { user.setRole(role); return this; }
+        public Builder lastActiveAt(LocalDateTime lastActiveAt) { user.setLastActiveAt(lastActiveAt); return this; }
+        public Builder followUpCallsOptIn(Boolean followUpCallsOptIn) { user.setFollowUpCallsOptIn(followUpCallsOptIn); return this; }
 
         public User build() { return user; }
     }

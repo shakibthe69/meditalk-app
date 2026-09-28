@@ -22,6 +22,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -48,37 +49,49 @@ public class MedicineLogService {
 
         List<MedicineLog> existingLogs = logRepository.findTodayLogsByUserId(userId, startOfDay, endOfDay);
 
-        if (existingLogs.isEmpty()) {
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        // Backfill: a medicine added after today's logs were first generated must
+        // still show up in "Today's Schedule", so create a log for every enabled
+        // schedule that does not have one yet — not only when the day is empty.
+        Set<String> covered = existingLogs.stream()
+                .map(l -> logKey(l.getMedicine() != null ? l.getMedicine().getId() : null, l.getScheduleId()))
+                .collect(Collectors.toSet());
 
-            List<Medicine> activeMedicines = medicineRepository.findByUserIdAndIsActiveTrueOrderByCreatedAtDesc(userId);
-            List<MedicineLog> generatedLogs = new ArrayList<>();
+        List<MedicineLog> backfilled = new ArrayList<>();
+        for (Medicine med : medicineRepository.findByUserIdAndIsActiveTrueOrderByCreatedAtDesc(userId)) {
+            if (med.getSchedules() == null) continue;
+            for (MedicineSchedule schedule : med.getSchedules()) {
+                if (schedule.getIsEnabled() == null || !schedule.getIsEnabled()) continue;
+                if (covered.contains(logKey(med.getId(), schedule.getId()))) continue;
 
-            for (Medicine med : activeMedicines) {
-                for (MedicineSchedule schedule : med.getSchedules()) {
-                    if (schedule.getIsEnabled()) {
-                        MedicineLog logItem = MedicineLog.builder()
-                                .user(user)
-                                .medicine(med)
-                                .scheduleId(schedule.getId())
-                                .medicineName(med.getName())
-                                .dose(schedule.getDosageAmount())
-                                .scheduledTime(schedule.getTime())
-                                .status("PENDING")
-                                .foodInstruction(schedule.getFoodInstruction() != null ? schedule.getFoodInstruction() : med.getFoodInstruction())
-                                .build();
-                        generatedLogs.add(logItem);
-                    }
-                }
-            }
-
-            if (!generatedLogs.isEmpty()) {
-                existingLogs = logRepository.saveAll(generatedLogs);
+                backfilled.add(MedicineLog.builder()
+                        .user(med.getUser() != null ? med.getUser() : userRepository.findById(userId)
+                                .orElseThrow(() -> new ResourceNotFoundException("User not found")))
+                        .medicine(med)
+                        .scheduleId(schedule.getId())
+                        .medicineName(med.getName())
+                        .dose(schedule.getDosageAmount())
+                        .scheduledTime(schedule.getTime())
+                        .status("PENDING")
+                        .foodInstruction(schedule.getFoodInstruction() != null ? schedule.getFoodInstruction() : med.getFoodInstruction())
+                        .build());
             }
         }
 
+        if (!backfilled.isEmpty()) {
+            logRepository.saveAll(backfilled);
+            // Re-query so the response keeps the repository's scheduled-time ordering.
+            existingLogs = logRepository.findTodayLogsByUserId(userId, startOfDay, endOfDay);
+        }
+
+        if (existingLogs.isEmpty()) {
+            return new ArrayList<>();
+        }
+
         return existingLogs.stream().map(this::mapToResponse).collect(Collectors.toList());
+    }
+
+    private static String logKey(Long medicineId, Long scheduleId) {
+        return medicineId + ":" + scheduleId;
     }
 
     @Transactional

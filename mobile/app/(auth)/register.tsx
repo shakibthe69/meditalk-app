@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../src/store';
 import { palette, typography, spacing, borderRadius } from '../../src/theme';
 import { Button, Input, Header } from '../../src/components';
-import { User, Mail, Lock, Phone, Droplet, Shield } from 'lucide-react-native';
+import { User, Mail, Lock, Phone, Droplet, Shield, Stethoscope } from 'lucide-react-native';
 
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
@@ -189,6 +189,16 @@ export default function RegisterScreen() {
               <Text style={styles.footerLink}>Log In</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Doctor registration entry point */}
+          <TouchableOpacity
+            style={styles.doctorLinkBtn}
+            onPress={() => router.push('/(auth)/register-doctor')}
+            activeOpacity={0.7}
+          >
+            <Stethoscope size={14} color={palette.blue700} />
+            <Text style={styles.doctorLinkText}>Register as a Doctor</Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -299,5 +309,22 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     fontWeight: '700',
     color: palette.teal600,
+  },
+  doctorLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    backgroundColor: palette.blue50,
+    borderWidth: 1,
+    borderColor: palette.blue100,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    marginTop: spacing.md,
+  },
+  doctorLinkText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: '700',
+    color: palette.blue700,
   },
 });

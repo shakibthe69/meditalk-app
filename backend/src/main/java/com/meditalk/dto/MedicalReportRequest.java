@@ -15,20 +15,12 @@ public class MedicalReportRequest {
     @NotBlank(message = "Report type is required")
     private String type;
 
-    @NotNull(message = "Test date is required")
-    private LocalDate testDate;
-
+    private LocalDate testDate = LocalDate.now();
     private String hospitalOrLab;
     private String notes;
-
-    @NotBlank(message = "File URL is required")
     private String fileUrl;
-
     private String fileType = "IMAGE";
-
-    @NotBlank(message = "File name is required")
     private String fileName;
-
     private Long fileSizeBytes;
 
     public MedicalReportRequest() {}

@@ -18,6 +18,14 @@ public class UserDto {
     private String role;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private LocalDateTime lastActiveAt;
+
+    /**
+     * Consent flag for automated medication follow-up calls (future AI voice).
+     * Mirrors {@code User.followUpCallsOptIn}; surfaced so the profile screen can
+     * show and toggle the preference explicitly — never enabled silently.
+     */
+    private Boolean followUpCallsOptIn = false;
 
     public UserDto() {}
 
@@ -60,6 +68,12 @@ public class UserDto {
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
+    public LocalDateTime getLastActiveAt() { return lastActiveAt; }
+    public void setLastActiveAt(LocalDateTime lastActiveAt) { this.lastActiveAt = lastActiveAt; }
+
+    public Boolean getFollowUpCallsOptIn() { return followUpCallsOptIn; }
+    public void setFollowUpCallsOptIn(Boolean followUpCallsOptIn) { this.followUpCallsOptIn = followUpCallsOptIn; }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -80,6 +94,8 @@ public class UserDto {
         public Builder role(String role) { dto.setRole(role); return this; }
         public Builder createdAt(LocalDateTime createdAt) { dto.setCreatedAt(createdAt); return this; }
         public Builder updatedAt(LocalDateTime updatedAt) { dto.setUpdatedAt(updatedAt); return this; }
+        public Builder lastActiveAt(LocalDateTime lastActiveAt) { dto.setLastActiveAt(lastActiveAt); return this; }
+        public Builder followUpCallsOptIn(Boolean optIn) { dto.setFollowUpCallsOptIn(optIn); return this; }
 
         public UserDto build() { return dto; }
     }

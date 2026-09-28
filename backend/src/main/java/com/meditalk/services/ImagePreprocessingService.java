@@ -83,7 +83,13 @@ public class ImagePreprocessingService {
 
             BufferedImage originalImage = ImageIO.read(new ByteArrayInputStream(inputBytes));
             if (originalImage == null) {
-                throw new BadRequestException("Invalid image format or corrupted image file.");
+                log.info("Image format could not be decoded by ImageIO. Passing original raw bytes directly to Vision OCR.");
+                return new PreprocessedImageResult(
+                        inputBytes,
+                        contentType != null ? contentType : "image/jpeg",
+                        0, 0,
+                        "Raw image pass-through"
+                );
             }
 
             BufferedImage processed = originalImage;

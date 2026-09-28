@@ -15,7 +15,11 @@ public class MedicineRequest {
 
     private String genericName;
 
-    @NotBlank(message = "Dose is required")
+    /**
+     * Strength/dose as printed on the prescription. Intentionally optional: when the
+     * prescription does not state it (or OCR could not read it) the value stays empty
+     * rather than being invented, and the medicine is still saved.
+     */
     private String dose;
 
     private String form = "TABLET";

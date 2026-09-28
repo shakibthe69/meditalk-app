@@ -13,7 +13,9 @@ import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../src/store';
 import { palette, typography, spacing, borderRadius } from '../../src/theme';
 import { Button, Input } from '../../src/components';
-import { Mail, Lock, HeartPulse, Sparkles } from 'lucide-react-native';
+import { authApi } from '../../src/services/api';
+import { setAuthTokenHeader } from '../../src/services/api/apiClient';
+import { Mail, Lock, HeartPulse, Sparkles, Stethoscope } from 'lucide-react-native';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -32,7 +34,13 @@ export default function LoginScreen() {
 
     const res = await login({ email, password });
     if (res.success) {
-      router.replace('/(tabs)');
+      // Route by role: admins to the admin panel, doctors to their portal.
+      const role = useAuthStore.getState().user?.role;
+      if (role === 'ROLE_ADMIN') {
+        router.replace('/(admin-tabs)');
+      } else {
+        router.replace(role === 'ROLE_DOCTOR' ? '/(doctor-tabs)' : '/(tabs)');
+      }
     } else {
       setErrorMessage(res.message || 'Login failed.');
     }
@@ -42,6 +50,24 @@ export default function LoginScreen() {
     setEmail('john.doe@meditalk.com');
     setPassword('SecurePass123!');
     setErrorMessage('');
+  };
+
+  const handleDoctorLogin = async () => {
+    setErrorMessage('');
+    if (!email.trim() || !password.trim()) {
+      setErrorMessage('Please enter both email and password.');
+      return;
+    }
+    try {
+      const authRes = await authApi.loginDoctor({ email, password });
+      setAuthTokenHeader(authRes.token);
+      router.replace('/(doctor-tabs)');
+    } catch (error: any) {
+      const msg =
+        error.response?.data?.message ||
+        'Doctor login failed. Please check credentials.';
+      setErrorMessage(msg);
+    }
   };
 
   return (
@@ -54,6 +80,28 @@ export default function LoginScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Top-corner Doctor Portal Link */}
+          <View style={styles.doctorPortalRow}>
+            <TouchableOpacity
+              style={styles.doctorPortalBtn}
+              onPress={handleDoctorLogin}
+              activeOpacity={0.7}
+            >
+              <Stethoscope size={14} color={palette.blue700} />
+              <Text style={styles.doctorPortalText}>Doctor Login</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.doctorPortalBtn, styles.doctorRegisterBtn]}
+              onPress={() => router.push('/(auth)/register-doctor')}
+              activeOpacity={0.7}
+            >
+              <Stethoscope size={14} color={palette.teal700} />
+              <Text style={[styles.doctorPortalText, styles.doctorRegisterText]}>
+                Doctor Register
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.logoBadge}>
@@ -143,6 +191,36 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xl,
     paddingBottom: spacing['2xl'],
     justifyContent: 'space-between',
+  },
+  doctorPortalRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.base,
+  },
+  doctorPortalBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: palette.blue50,
+    borderWidth: 1,
+    borderColor: palette.blue100,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 5,
+    borderRadius: borderRadius.full,
+  },
+  doctorPortalText: {
+    fontSize: typography.sizes.xs,
+    fontWeight: '700',
+    color: palette.blue700,
+  },
+  doctorRegisterBtn: {
+    backgroundColor: palette.teal50,
+    borderColor: palette.teal200,
+  },
+  doctorRegisterText: {
+    color: palette.teal700,
   },
   header: {
     alignItems: 'center',

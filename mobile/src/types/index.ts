@@ -5,3 +5,6 @@ export * from './report.types';
 export * from './doctor.types';
 export * from './history.types';
 export * from './disease.types';
+export * from './doctorPortal.types';
+export * from './emergency.types';
+export * from './realtime.types';

@@ -22,7 +22,9 @@ import {
 import { MedicalHistoryItem, HistoryCategory } from '../../src/types';
 import { prescriptionApi } from '../../src/services/api/prescriptionApi';
 import { reportApi } from '../../src/services/api/reportApi';
+import { medicineApi } from '../../src/services/api/medicineApi';
 import { useSettingsStore } from '../../src/store/useSettingsStore';
+import { useMedicineStore } from '../../src/store/useMedicineStore';
 import {
   Search,
   Calendar,
@@ -94,12 +96,53 @@ export default function HistoryScreen() {
 
   const loadHistory = async () => {
     try {
-      const [rxRes, reportRes] = await Promise.allSettled([
+      const [rxRes, reportRes, medRes] = await Promise.allSettled([
         prescriptionApi.getPrescriptions(),
         reportApi.getReports(),
+        medicineApi.getMedicines(),
       ]);
 
       const liveItems: HistoryItemExtended[] = [];
+
+      // Lifetime medication record: every medicine ever added, active or finished.
+      if (medRes.status === 'fulfilled' && Array.isArray(medRes.value)) {
+        medRes.value.forEach((med: any) => {
+          const times = (med.schedules || [])
+            .map((s: any) => s?.time)
+            .filter(Boolean)
+            .join(', ');
+          const scheduleInfo = times
+            ? `${language === 'bn' ? 'রিমাইন্ডার: ' : 'Reminder times: '}${times}`
+            : '';
+          const frequency = med.frequency
+            ? `${language === 'bn' ? 'সেবন: ' : 'Frequency: '}${String(med.frequency).replace(/_/g, ' ')}`
+            : '';
+          const details = [scheduleInfo, frequency, med.instructions]
+            .filter(Boolean)
+            .join(' · ');
+
+          liveItems.push({
+            id: `med_${med.id}`,
+            rawId: med.id,
+            dbType: 'MEDICINE',
+            category: 'MEDICINE',
+            title: `${med.name}${med.dose ? ` ${med.dose}` : ''}`,
+            subtitle:
+              med.genericName ||
+              (language === 'bn' ? 'ওষুধের রেকর্ড' : 'Medication record'),
+            date: med.startDate || med.createdAt?.split('T')[0] || '—',
+            details: details || undefined,
+            badgeLabel: med.isActive
+              ? language === 'bn'
+                ? 'সক্রিয় চলছে'
+                : 'Active course'
+              : language === 'bn'
+                ? 'কোর্স সম্পন্ন'
+                : 'Course finished',
+            badgeType: med.isActive ? 'success' : 'info',
+          });
+        });
+      }
 
       if (rxRes.status === 'fulfilled' && Array.isArray(rxRes.value)) {
         rxRes.value.forEach((rx: any) => {
@@ -175,6 +218,10 @@ export default function HistoryScreen() {
           await prescriptionApi.deletePrescription(String(item.rawId));
         } else if (item.dbType === 'REPORT' && item.rawId) {
           await reportApi.deleteReport(String(item.rawId));
+        } else if (item.dbType === 'MEDICINE' && item.rawId) {
+          // Goes through the store so the local reminder notifications are
+          // cancelled together with the database record.
+          await useMedicineStore.getState().deleteMedicine(String(item.rawId));
         }
         await loadHistory();
       } catch (err) {

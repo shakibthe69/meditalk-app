@@ -166,10 +166,12 @@ public class AuthService {
                 .role(user.getRole())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
+                .lastActiveAt(user.getLastActiveAt())
+                .followUpCallsOptIn(user.getFollowUpCallsOptIn() != null && user.getFollowUpCallsOptIn())
                 .build();
     }
 
-    private void seedInitialUserData(User user) {
+    public void seedInitialUserData(User user) {
         try {
             Doctor doctor = Doctor.builder()
                     .user(user)

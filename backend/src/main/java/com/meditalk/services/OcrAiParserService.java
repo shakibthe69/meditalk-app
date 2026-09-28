@@ -26,7 +26,9 @@ public class OcrAiParserService {
     private static final Pattern HOSPITAL_PATTERN = Pattern.compile("(?i)([A-Za-z\\u0980-\\u09FF\\s]+(?:Hospital|Clinic|Medical|Health Care|Center|হাসপাতাল|ক্লিনিক|ডায়াগনস্টিক))");
 
     // Dose / Strength Patterns
-    private static final Pattern DOSE_PATTERN = Pattern.compile("(?i)(\\d+(?:\\.\\d+)?\\s*(?:mg|g|ml|mcg|iu|মি\\.গ্রা\\.|মিলিগ্রাম|মিলি|ট্যাবলেট|ক্যাপসুল))");
+    // Accepts both English and Bangla digits so "৫০০ মি.গ্রা." reads as 500 mg.
+    private static final Pattern DOSE_PATTERN = Pattern.compile(
+            "(?i)([০-৯\\d]+(?:\\.[০-৯\\d]+)?\\s*(?:mg|g|ml|mcg|iu|মি\\.গ্রা\\.|মিলিগ্রাম|মিলি|ট্যাবলেট|ক্যাপসুল))");
 
     // Frequency / Timing Patterns (English & Bangla digits)
     private static final Pattern FREQ_PATTERN_EN = Pattern.compile("(?<![\\w\\d])([0123])\\s*([+\\-])\\s*([0123])(?:\\s*([+\\-])\\s*([0123]))?(?:\\s*([+\\-])\\s*([0123]))?(?![\\w\\d])");
@@ -159,6 +161,13 @@ public class OcrAiParserService {
         for (String rawLine : lines) {
             String line = rawLine.trim();
             if (line.isBlank() || isHeaderLine(line)) {
+                if (isSectionDividerLine(line) && currentMed != null) {
+                    if (isValidMedicine(currentMed)) {
+                        buildSchedulesForMedicine(currentMed);
+                        list.add(currentMed);
+                    }
+                    currentMed = null;
+                }
                 continue;
             }
 
@@ -190,7 +199,17 @@ public class OcrAiParserService {
         return lower.startsWith("dr.") || lower.startsWith("dr ") || lower.startsWith("doctor") ||
                 lower.startsWith("date") || lower.startsWith("hospital") || lower.startsWith("clinic") ||
                 lower.startsWith("patient") || lower.startsWith("age") || lower.startsWith("sex") ||
-                lower.startsWith("ডাঃ") || lower.startsWith("তারিখ") || lower.equals("rx");
+                lower.startsWith("reg no") || lower.startsWith("diagnosis") ||
+                lower.startsWith("ডাঃ") || lower.startsWith("তারিখ") || lower.equals("rx") ||
+                isSectionDividerLine(line);
+    }
+
+    private boolean isSectionDividerLine(String line) {
+        String lower = line.toLowerCase();
+        return lower.startsWith("advice") || lower.startsWith("উপদেশ") ||
+                lower.startsWith("investigation") || lower.startsWith("পরীক্ষা") ||
+                lower.startsWith("follow up") || lower.startsWith("review after") ||
+                lower.startsWith("signature") || lower.startsWith("sign");
     }
 
     // Common medicine dictionary (English & Bengali)
@@ -211,18 +230,26 @@ public class OcrAiParserService {
     );
 
     private boolean isMedicineStartLine(String line) {
-        String lower = line.toLowerCase();
+        String trimmed = line.trim();
+        String lower = trimmed.toLowerCase();
+
+        // If line is a frequency pattern or food instruction, it is a sub-instruction
+        if (trimmed.matches("^[\\s\\-\\–\\*]*([0123০১২৩]\\s*[\\+\\-]\\s*[0123০১২৩]|before|after|with|খাবারের|খাওয়ার|নাস্তার|চলবে|দিনে|রাতে|সকালে).*")
+                || lower.startsWith("advice") || lower.startsWith("উপদেশ")) {
+            return false;
+        }
+
         for (String med : KNOWN_MEDICINE_NAMES) {
             if (lower.contains(med.toLowerCase())) {
                 return true;
             }
         }
         // Starts with bullet: 1. 2. or ১. ২.
-        if (line.matches("^([\\d০-৯]+[\\.\\)\\-]|Rx|R/x|Tab\\.?|Cap\\.?|Syp\\.?|Inj\\.?|ট্যাব\\.?|ক্যাপ\\.?|সিরাপ).*")) {
+        if (trimmed.matches("^([\\d০-৯]+[\\.\\)\\-]|Rx|R/x|Tab\\.?|Cap\\.?|Syp\\.?|Inj\\.?|ট্যাব\\.?|ক্যাপ\\.?|সিরাপ).*")) {
             return true;
         }
         // Contains standard dose like 500mg, 20mg
-        Matcher doseMatcher = DOSE_PATTERN.matcher(line);
+        Matcher doseMatcher = DOSE_PATTERN.matcher(trimmed);
         return doseMatcher.find();
     }
 
@@ -255,7 +282,7 @@ public class OcrAiParserService {
                 String dose = "";
                 Matcher dm = DOSE_PATTERN.matcher(cleaned);
                 if (dm.find()) {
-                    dose = dm.group(1).trim();
+                    dose = convertBnDigitsToEn(dm.group(1).trim());
                 }
 
                 ExtractedMedicineDto med = ExtractedMedicineDto.builder()
@@ -276,12 +303,10 @@ public class OcrAiParserService {
         }
 
         String dose = "";
-        String name = cleaned;
-
-        Matcher doseMatcher = DOSE_PATTERN.matcher(cleaned);
-        if (doseMatcher.find()) {
-            dose = doseMatcher.group(1).trim();
-            name = cleaned.substring(0, doseMatcher.start()).replaceAll("[^a-zA-Z0-9\\u0980-\\u09FF\\s\\-]", "").trim();
+        String name = cleaned;            Matcher doseMatcher = DOSE_PATTERN.matcher(cleaned);
+            if (doseMatcher.find()) {
+                dose = convertBnDigitsToEn(doseMatcher.group(1).trim());
+                name = cleaned.substring(0, doseMatcher.start()).replaceAll("[^a-zA-Z0-9\\u0980-\\u09FF\\s\\-]", "").trim();
             String remainder = cleaned.substring(doseMatcher.end()).trim();
 
             ExtractedMedicineDto med = ExtractedMedicineDto.builder()
@@ -470,40 +495,105 @@ public class OcrAiParserService {
         }
     }
 
-    private void buildSchedulesForMedicine(ExtractedMedicineDto med) {
+    /**
+     * Builds editable reminder slots from the medicine's stated schedule.
+     *
+     * <p>When the prescription does not state a schedule we deliberately create no
+     * slots, so the user must choose one instead of the app inventing dose times.</p>
+     */
+    public void buildSchedulesForMedicine(ExtractedMedicineDto med) {
         List<MedicineScheduleDto> schedules = new ArrayList<>();
-        List<String> timing = (med.getTiming() != null && !med.getTiming().isEmpty())
-                ? med.getTiming()
-                : List.of("morning");
 
-        String food = (med.getFoodInstruction() != null) ? med.getFoodInstruction() : "AFTER_MEAL";
-        String dosageAmount = "1 " + (med.getForm() != null ? capitalize(med.getForm().toLowerCase()) : "Tablet");
+        int[] counts = parseDoseCounts(med.getDosePattern());
+        if (counts == null) {
+            med.setSchedules(schedules);
+            return;
+        }
 
-        for (String slot : timing) {
-            String time = "08:00 AM";
-            String label = "MORNING";
+        String food = med.getFoodInstruction();
+        String unit = med.getForm() != null ? capitalize(med.getForm().toLowerCase()) : "Tablet";
 
-            if (slot.equalsIgnoreCase("afternoon") || slot.equalsIgnoreCase("noon")) {
-                time = "02:00 PM";
-                label = "AFTERNOON";
-            } else if (slot.equalsIgnoreCase("evening")) {
-                time = "06:00 PM";
-                label = "EVENING";
-            } else if (slot.equalsIgnoreCase("night") || slot.equalsIgnoreCase("dinner")) {
-                time = "10:00 PM";
-                label = "NIGHT";
+        // Slot labels follow the app's existing convention for 1, 2, 3 and 4 daily doses.
+        String[] labels;
+        String[] times;
+        switch (counts.length) {
+            case 1:
+                labels = new String[]{"MORNING"};
+                times = new String[]{"08:00 AM"};
+                break;
+            case 2:
+                labels = new String[]{"MORNING", "NIGHT"};
+                times = new String[]{"08:00 AM", "10:00 PM"};
+                break;
+            case 3:
+                labels = new String[]{"MORNING", "AFTERNOON", "NIGHT"};
+                times = new String[]{"08:00 AM", "02:00 PM", "10:00 PM"};
+                break;
+            default:
+                labels = new String[]{"MORNING", "AFTERNOON", "EVENING", "NIGHT"};
+                times = new String[]{"08:00 AM", "02:00 PM", "06:00 PM", "10:00 PM"};
+                break;
+        }
+
+        for (int i = 0; i < counts.length; i++) {
+            if (counts[i] <= 0) {
+                continue;
             }
-
             schedules.add(MedicineScheduleDto.builder()
-                    .time(time)
-                    .label(label)
-                    .dosageAmount(dosageAmount)
+                    .time(times[i])
+                    .label(labels[i])
+                    .dosageAmount(counts[i] + " " + (counts[i] > 1 ? pluralize(unit) : unit))
                     .foodInstruction(food)
                     .isEnabled(true)
                     .build());
         }
 
         med.setSchedules(schedules);
+    }
+
+    /**
+     * Parses a dose pattern such as "1+0+2" into its per-slot counts.
+     * Returns null when no schedule was actually stated.
+     */
+    public static int[] parseDoseCounts(String dosePattern) {
+        if (dosePattern == null || dosePattern.isBlank()) {
+            return null;
+        }
+        String normalized = convertBnDigitsToEnStatic(dosePattern);
+        if (!normalized.matches("[0-9]+([+\\-][0-9]+)*")) {
+            return null;
+        }
+        String[] parts = normalized.split("[+\\-]");
+        int slotCount = Math.min(parts.length, 4);
+        int[] counts = new int[slotCount];
+        for (int i = 0; i < slotCount; i++) {
+            try {
+                counts[i] = Integer.parseInt(parts[i].trim());
+            } catch (NumberFormatException ignored) {
+                counts[i] = 0;
+            }
+        }
+
+        for (int count : counts) {
+            if (count > 0) {
+                return counts;
+            }
+        }
+        return null;
+    }
+
+    private static String convertBnDigitsToEnStatic(String input) {
+        StringBuilder sb = new StringBuilder();
+        for (char c : input.toCharArray()) {
+            sb.append(BN_TO_EN_DIGITS.getOrDefault(c, c));
+        }
+        return sb.toString();
+    }
+
+    private String pluralize(String unit) {
+        if (unit == null) return "Tablets";
+        if (unit.endsWith("s")) return unit;
+        return unit + "s";
     }
 
     private boolean isValidMedicine(ExtractedMedicineDto med) {

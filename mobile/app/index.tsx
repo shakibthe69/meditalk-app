@@ -7,7 +7,7 @@ import { HeartPulse } from 'lucide-react-native';
 
 export default function SplashScreen() {
   const router = useRouter();
-  const { isAuthenticated, hasCompletedOnboarding, isLoading } = useAuthStore();
+  const { isAuthenticated, hasCompletedOnboarding, isLoading, user } = useAuthStore();
 
   useEffect(() => {
     // Splash timeout to simulate startup & route
@@ -15,14 +15,21 @@ export default function SplashScreen() {
       if (!hasCompletedOnboarding) {
         router.replace('/(auth)/onboarding');
       } else if (isAuthenticated) {
-        router.replace('/(tabs)');
+        // Route doctors to the doctor portal, patients to the main app
+        if (user?.role === 'ROLE_ADMIN') {
+          router.replace('/(admin-tabs)');
+        } else if (user?.role === 'ROLE_DOCTOR') {
+          router.replace('/(doctor-tabs)');
+        } else {
+          router.replace('/(tabs)');
+        }
       } else {
         router.replace('/(auth)/login');
       }
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [isAuthenticated, hasCompletedOnboarding]);
+  }, [isAuthenticated, hasCompletedOnboarding, user?.role]);
 
   return (
     <View style={styles.container}>

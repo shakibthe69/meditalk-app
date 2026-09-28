@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { apiClient, getApiBaseUrl } from './apiClient';
 import { Prescription, PrescriptionOcrDraft } from '../../types';
 
@@ -7,10 +8,13 @@ export const prescriptionApi = {
     return res.data.data;
   },
 
-  createPrescription: async (data: any): Promise<Prescription> => {
-    const res = await apiClient.post('/api/prescriptions', data);
+  createPrescription: async (data: any, allowDuplicate = false): Promise<Prescription> => {
+    const res = await apiClient.post('/api/prescriptions', { ...data, allowDuplicate });
     return res.data.data;
   },
+
+  /** True when the backend rejected the save because the same prescription already exists. */
+  isDuplicatePrescriptionError: (error: any): boolean => error?.response?.status === 409,
 
   deletePrescription: async (id: string): Promise<void> => {
     await apiClient.delete(`/api/prescriptions/${id}`);
@@ -23,19 +27,22 @@ export const prescriptionApi = {
 
   scanPrescriptionImage: async (fileUri: string, fileName: string = 'prescription.jpg', mimeType: string = 'image/jpeg'): Promise<PrescriptionOcrDraft> => {
     const formData = new FormData();
-    if (fileUri.startsWith('data:') || fileUri.startsWith('blob:') || (typeof window !== 'undefined' && !fileUri.startsWith('file:'))) {
+    if (Platform.OS === 'web' || fileUri.startsWith('data:') || fileUri.startsWith('blob:')) {
       const response = await fetch(fileUri);
       const blob = await response.blob();
+      formData.append('image', blob, fileName);
       formData.append('file', blob, fileName);
     } else {
-      formData.append('file', {
+      const filePayload = {
         uri: fileUri,
         name: fileName,
         type: mimeType,
-      } as any);
+      } as any;
+      formData.append('image', filePayload);
+      formData.append('file', filePayload);
     }
 
-    const res = await apiClient.post('/api/prescriptions/scan', formData, {
+    const res = await apiClient.post('/api/prescriptions/ocr', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

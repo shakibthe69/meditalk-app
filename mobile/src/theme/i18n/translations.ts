@@ -41,6 +41,20 @@ export interface TranslationDict {
   useSamplePrescription: string;
   useSampleSub: string;
   processingPrescription: string;
+  loadingUploadingPrescription: string;
+  loadingReadingPrescription: string;
+  loadingUnderstandingPrescription: string;
+  loadingPreparingMedicines: string;
+  retryOcr: string;
+  extractionSourceLabel: string;
+  extractionGemini: string;
+  extractionRuleBased: string;
+  ocrEngineLabel: string;
+  missingFieldsAlert: string;
+  missingFieldsMsg: string;
+  duplicateTitle: string;
+  duplicateMsg: string;
+  saveAnyway: string;
   rawOcrTextLabel: string;
   rawOcrTextDesc: string;
   runAiParser: string;
@@ -137,6 +151,111 @@ export interface TranslationDict {
   voiceOn: string;
   voiceOff: string;
   selectLanguage: string;
+
+  // Emergency Assistance
+  emergencyAssistance: string;
+  emergencySubtitle: string;
+
+  // Doctor Updates (patient dashboard)
+  doctorUpdates: string;
+  noDoctorUpdates: string;
+  doctorOnline: string;
+
+  // Find Doctors (patient dashboard)
+  findDoctors: string;
+  findDoctorsSubtitle: string;
+  doctorsOnline: string;
+  searchDoctors: string;
+  noDoctorsFound: string;
+  noDoctorsFoundSub: string;
+  onlineNow: string;
+  offlineNow: string;
+  call: string;
+  message: string;
+  seeAllDoctors: string;
+
+  // Profile editing
+  editProfile: string;
+  editProfileSubtitle: string;
+  changePhoto: string;
+  saveChanges: string;
+  profileSaved: string;
+  profileSaveFailed: string;
+  fullName: string;
+  emailLabel: string;
+  phoneLabel: string;
+  genderLabel: string;
+  bloodGroupLabel: string;
+  dateOfBirthLabel: string;
+  emergencyContactLabel: string;
+
+  // Reminder notification settings
+  notificationSettings: string;
+  notificationSettingsSubtitle: string;
+  medicineReminders: string;
+  medicineRemindersDesc: string;
+  reminderSound: string;
+  reminderSoundDesc: string;
+  reminderVibration: string;
+  reminderVibrationDesc: string;
+  reminderVoiceReadout: string;
+  reminderVoiceReadoutDesc: string;
+  sendTestReminder: string;
+  testReminderTitle: string;
+  testReminderBody: string;
+  notificationPermissionNeeded: string;
+  customTimesHint: string;
+  addReminderTime: string;
+
+  // Health chat (AI assistant)
+  aiChatTitle: string;
+  aiChatSubtitle: string;
+  aiGreeting: string;
+  aiThinking: string;
+  aiInputPlaceholder: string;
+  aiDisclaimer: string;
+  aiRelatedConditions: string;
+  aiEmergencyTitle: string;
+  aiEmergencyBody: string;
+  askAiAction: string;
+  directoryAction: string;
+  aiSuggestFever: string;
+  aiSuggestHeadache: string;
+  aiSuggestStomach: string;
+  aiSuggestBreathing: string;
+  aiSuggestMedicine: string;
+  aiNoMatch: string;
+
+  // Calls & realtime
+  callHistory: string;
+  calls: string;
+  incomingCall: string;
+  outgoingCall: string;
+  missedCall: string;
+  declinedCall: string;
+  callEnded: string;
+  ringing: string;
+  connecting: string;
+  connected: string;
+  acceptCall: string;
+  declineCall: string;
+  endCall: string;
+  audioCall: string;
+  videoCall: string;
+  noCallHistory: string;
+  callBack: string;
+  typing: string;
+  peerOffline: string;
+  mediaPending: string;
+  mute: string;
+  unmute: string;
+  speaker: string;
+  liveChat: string;
+  mediaStarting: string;
+  mediaLive: string;
+  mediaFailed: string;
+  mediaHint: string;
+  devBuildTitle: string;
 }
 
 export const translations: Record<AppLanguage, TranslationDict> = {
@@ -183,6 +302,22 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     useSamplePrescription: 'Use Sample Bilingual Prescription',
     useSampleSub: 'Instant OCR demo with English + Bangla dosage patterns (1+0+1)',
     processingPrescription: 'Processing prescription with OCR...',
+    loadingUploadingPrescription: 'Uploading prescription...',
+    loadingReadingPrescription: 'Reading prescription...',
+    loadingUnderstandingPrescription: 'Understanding prescription...',
+    loadingPreparingMedicines: 'Preparing medicines for review...',
+    retryOcr: 'Retry OCR',
+    extractionSourceLabel: 'Structured by',
+    extractionGemini: 'Prescription AI',
+    extractionRuleBased: 'Direct text parsing',
+    ocrEngineLabel: 'Read by',
+    missingFieldsAlert: 'Incomplete medicine details',
+    missingFieldsMsg:
+      'Every medicine needs a name, a strength/dose and a dose schedule. Please fill in what the prescription actually states — MediTalk never guesses these values.',
+    duplicateTitle: 'Prescription already saved',
+    duplicateMsg:
+      'A matching prescription is already in your records. Open it from your history, or save another copy if this is a different prescription.',
+    saveAnyway: 'Save anyway',
     rawOcrTextLabel: 'Extracted Raw OCR Text',
     rawOcrTextDesc: 'Review or edit any extracted characters before running the AI structured parser:',
     runAiParser: 'Run AI Structure Parser',
@@ -232,7 +367,7 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     tabHome: 'Home',
     tabMedicines: 'Medicines',
     tabHistory: 'History',
-    tabGuide: 'Health Guide',
+    tabGuide: 'Health Chat',
     tabProfile: 'Profile',
 
     // History & Records
@@ -246,8 +381,8 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     myMedicines: 'My Medicines',
     allMedicines: 'All Medications',
 
-    // Health Guide & Disease Directory
-    healthGuide: 'Health & Disease Guide',
+    // Health Chat & Disease Directory
+    healthGuide: 'Health Chat',
     searchDiseasePlaceholder: 'Search disease, symptoms (e.g. Diabetes, Fever, Asthma)...',
     popularConditions: 'Popular Conditions',
     browseCategories: 'Medical Categories',
@@ -281,6 +416,111 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     voiceOn: 'Voice On',
     voiceOff: 'Voice Off',
     selectLanguage: 'Language / ভাষা',
+
+    // Emergency Service
+    emergencyAssistance: 'Emergency Service',
+    emergencySubtitle: 'Nearby hospitals & one-tap emergency call',
+
+    // Doctor Updates (patient dashboard)
+    doctorUpdates: 'Doctor Updates',
+    noDoctorUpdates: 'No updates from doctors yet.',
+    doctorOnline: 'Online',
+
+    // Find Doctors (patient dashboard)
+    findDoctors: 'Find Doctors',
+    findDoctorsSubtitle: 'Call, text or chat with a doctor who is online now',
+    doctorsOnline: 'doctors online',
+    searchDoctors: 'Search by name or specialty...',
+    noDoctorsFound: 'No doctors match your search.',
+    noDoctorsFoundSub: 'Try a different name or medical specialty.',
+    onlineNow: 'Online',
+    offlineNow: 'Offline',
+    call: 'Call',
+    message: 'Message',
+    seeAllDoctors: 'See all doctors',
+
+    // Profile editing
+    editProfile: 'Edit Profile',
+    editProfileSubtitle: 'Update your photo and personal details',
+    changePhoto: 'Change Photo',
+    saveChanges: 'Save Changes',
+    profileSaved: 'Profile updated successfully.',
+    profileSaveFailed: 'Could not update the profile. Please try again.',
+    fullName: 'Full Name',
+    emailLabel: 'Email',
+    phoneLabel: 'Phone Number',
+    genderLabel: 'Gender',
+    bloodGroupLabel: 'Blood Group',
+    dateOfBirthLabel: 'Date of Birth',
+    emergencyContactLabel: 'Emergency Contact Number',
+
+    // Reminder notification settings
+    notificationSettings: 'Reminder Notifications',
+    notificationSettingsSubtitle: 'Choose how medicine reminders reach you',
+    medicineReminders: 'Medicine reminders',
+    medicineRemindersDesc: 'Daily alarms for every scheduled dose',
+    reminderSound: 'Reminder sound',
+    reminderSoundDesc: 'Play a sound with reminders and incoming calls',
+    reminderVibration: 'Vibration',
+    reminderVibrationDesc: 'Vibrate the device for reminders and incoming calls',
+    reminderVoiceReadout: 'Voice readout',
+    reminderVoiceReadoutDesc: 'Speak the reminder out loud in your language',
+    sendTestReminder: 'Send a test reminder',
+    testReminderTitle: 'Test reminder',
+    testReminderBody: 'Reminders are working. Your next dose will alert you at its scheduled time.',
+    notificationPermissionNeeded: 'Notification permission is required for reminders. Please allow notifications for Meditalk in system settings.',
+    customTimesHint: 'You can add your own reminder times when adding a medicine.',
+    addReminderTime: '+ Add reminder time',
+
+    // Health chat (AI assistant)
+    aiChatTitle: 'AI Health Assistant',
+    aiChatSubtitle: 'Ask about symptoms, medicines or home care',
+    aiGreeting: 'Hello! I am your AI health assistant. Tell me your symptom or ask a medical question in English or Bangla — I will guide you.',
+    aiThinking: 'Thinking…',
+    aiInputPlaceholder: 'Type your symptom or question…',
+    aiDisclaimer: 'This AI guidance is educational and is not a diagnosis. Always consult a qualified doctor for medical decisions.',
+    aiRelatedConditions: 'Related conditions',
+    aiEmergencyTitle: 'This may be an emergency',
+    aiEmergencyBody: 'Please call emergency services (999) or open Emergency Service right away. Do not wait.',
+    askAiAction: 'Ask AI',
+    directoryAction: 'Browse Guide',
+    aiSuggestFever: 'I have fever',
+    aiSuggestHeadache: 'Headache for 2 days',
+    aiSuggestStomach: 'Stomach pain',
+    aiSuggestBreathing: 'Trouble breathing',
+    aiSuggestMedicine: 'How should I take medicine?',
+    aiNoMatch: 'I could not find a matching condition. Try describing the symptom differently, or browse the Health Chat directory.',
+
+    // Calls & realtime
+    callHistory: 'Call History',
+    calls: 'Calls',
+    incomingCall: 'Incoming call',
+    outgoingCall: 'Outgoing',
+    missedCall: 'Missed',
+    declinedCall: 'Declined',
+    callEnded: 'Call ended',
+    ringing: 'Ringing…',
+    connecting: 'Connecting…',
+    connected: 'Connected',
+    acceptCall: 'Accept',
+    declineCall: 'Decline',
+    endCall: 'End call',
+    audioCall: 'Audio call',
+    videoCall: 'Video call',
+    noCallHistory: 'No calls yet.',
+    callBack: 'Call back',
+    typing: 'typing…',
+    peerOffline: 'is offline right now',
+    mediaPending: 'Audio & video media connects here',
+    mute: 'Mute',
+    unmute: 'Unmute',
+    speaker: 'Speaker',
+    liveChat: 'Live chat',
+    mediaStarting: 'Starting camera & microphone…',
+    mediaLive: 'Live audio & video',
+    mediaFailed: 'Media connection failed',
+    mediaHint: 'Both sides are streaming live audio and video',
+    devBuildTitle: 'In-app calls need a development build',
   },
   bn: {
     appName: 'মেডিটক',
@@ -325,6 +565,22 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     useSamplePrescription: 'নমুনা দ্বিভাষিক প্রেসক্রিপশন ব্যবহার করুন',
     useSampleSub: 'ইংরেজি ও বাংলা মাত্রা প্যাটার্নসহ দ্রুত ও সি আর ডেমো (১+০+১)',
     processingPrescription: 'প্রেসক্রিপশন ও সি আর প্রক্রিয়া করা হচ্ছে...',
+    loadingUploadingPrescription: 'প্রেসক্রিপশন আপলোড করা হচ্ছে...',
+    loadingReadingPrescription: 'প্রেসক্রিপশন পড়া হচ্ছে...',
+    loadingUnderstandingPrescription: 'প্রেসক্রিপশন বিশ্লেষণ করা হচ্ছে...',
+    loadingPreparingMedicines: 'পর্যালোচনার জন্য ওষুধ প্রস্তুত করা হচ্ছে...',
+    retryOcr: 'আবার স্ক্যান করুন',
+    extractionSourceLabel: 'সাজানো হয়েছে',
+    extractionGemini: 'প্রেসক্রিপশন এ আই',
+    extractionRuleBased: 'সরাসরি টেক্সট বিশ্লেষণ',
+    ocrEngineLabel: 'পড়া হয়েছে',
+    missingFieldsAlert: 'ওষুধের তথ্য অসম্পূর্ণ',
+    missingFieldsMsg:
+      'প্রতিটি ওষুধের জন্য নাম, পাওয়ার/মাত্রা এবং সেবনের নিয়ম প্রয়োজন। প্রেসক্রিপশনে যা লেখা আছে সেটিই লিখুন — মেডিটক কখনো অনুমান করে মান বসায় না।',
+    duplicateTitle: 'প্রেসক্রিপশন ইতিমধ্যে সংরক্ষিত',
+    duplicateMsg:
+      'একই প্রেসক্রিপশন আপনার রেকর্ডে আগেই আছে। ইতিহাস থেকে সেটি খুলুন, অথবা এটি ভিন্ন প্রেসক্রিপশন হলে নতুন কপি হিসেবে সংরক্ষণ করুন।',
+    saveAnyway: 'তবুও সংরক্ষণ করুন',
     rawOcrTextLabel: 'সনাক্তকৃত ও সি আর টেক্সট',
     rawOcrTextDesc: 'স্বয়ংক্রিয়ভাবে সাজানোর পূর্বে টেক্সট যাচাই বা সংশোধন করতে পারেন:',
     runAiParser: 'ওষুধের তথ্য সনাক্ত করুন',
@@ -374,7 +630,7 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     tabHome: 'হোম',
     tabMedicines: 'ওষুধ',
     tabHistory: 'হিস্ট্রি',
-    tabGuide: 'স্বাস্থ্য গাইড',
+    tabGuide: 'স্বাস্থ্য চ্যাট',
     tabProfile: 'প্রোফাইল',
 
     // History & Records
@@ -388,8 +644,8 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     myMedicines: 'আমার ওষুধ',
     allMedicines: 'সকল ওষুধ',
 
-    // Health Guide & Disease Directory
-    healthGuide: 'স্বাস্থ্য ও রোগ নির্দেশিকা',
+    // Health Chat & Disease Directory
+    healthGuide: 'স্বাস্থ্য চ্যাট',
     searchDiseasePlaceholder: 'রোগ বা লক্ষণ খুঁজুন (যেমন: ডায়াবেটিস, জ্বর, হাঁপানি)...',
     popularConditions: 'জনপ্রিয় স্বাস্থ্য পরিস্থিতি',
     browseCategories: 'বিভাগ অনুযায়ী রোগসমূহ',
@@ -423,5 +679,110 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     voiceOn: 'ভয়েস চালু',
     voiceOff: 'ভয়েস বন্ধ',
     selectLanguage: 'ভাষা নির্বাচন (Language)',
+
+    // Emergency Service
+    emergencyAssistance: 'জরুরি সেবা',
+    emergencySubtitle: 'নিকটস্থ হাসপাতাল ও এক ট্যাপে জরুরি কল',
+
+    // Doctor Updates (patient dashboard)
+    doctorUpdates: 'ডাক্তারের আপডেট',
+    noDoctorUpdates: 'এখনো কোনো আপডেট নেই।',
+    doctorOnline: 'অনলাইন',
+
+    // Find Doctors (patient dashboard)
+    findDoctors: 'ডাক্তার খুঁজুন',
+    findDoctorsSubtitle: 'এখন অনলাইনে থাকা ডাক্তারকে কল, মেসেজ বা চ্যাট করুন',
+    doctorsOnline: 'জন ডাক্তার অনলাইন',
+    searchDoctors: 'নাম বা বিশেষত্ব দিয়ে খুঁজুন...',
+    noDoctorsFound: 'আপনার অনুসন্ধানের সাথে কোনো ডাক্তার মেলেনি।',
+    noDoctorsFoundSub: 'অন্য নাম বা বিশেষত্ব দিয়ে চেষ্টা করুন।',
+    onlineNow: 'অনলাইন',
+    offlineNow: 'অফলাইন',
+    call: 'কল',
+    message: 'মেসেজ',
+    seeAllDoctors: 'সব ডাক্তার দেখুন',
+
+    // Profile editing
+    editProfile: 'প্রোফাইল সম্পাদনা',
+    editProfileSubtitle: 'আপনার ছবি ও ব্যক্তিগত তথ্য হালনাগাদ করুন',
+    changePhoto: 'ছবি পরিবর্তন করুন',
+    saveChanges: 'পরিবর্তন সংরক্ষণ করুন',
+    profileSaved: 'প্রোফাইল সফলভাবে হালনাগাদ হয়েছে।',
+    profileSaveFailed: 'প্রোফাইল হালনাগাদ করা যায়নি। আবার চেষ্টা করুন।',
+    fullName: 'পুরো নাম',
+    emailLabel: 'ইমেইল',
+    phoneLabel: 'ফোন নম্বর',
+    genderLabel: 'লিঙ্গ',
+    bloodGroupLabel: 'রক্তের গ্রুপ',
+    dateOfBirthLabel: 'জন্মতারিখ',
+    emergencyContactLabel: 'জরুরি যোগাযোগ নম্বর',
+
+    // Reminder notification settings
+    notificationSettings: 'রিমাইন্ডার নোটিফিকেশন',
+    notificationSettingsSubtitle: 'ওষুধের রিমাইন্ডার কীভাবে পাবেন তা নির্বাচন করুন',
+    medicineReminders: 'ওষুধের রিমাইন্ডার',
+    medicineRemindersDesc: 'প্রতিটি নির্ধারিত ডোজের জন্য দৈনিক অ্যালার্ম',
+    reminderSound: 'রিমাইন্ডার সাউন্ড',
+    reminderSoundDesc: 'রিমাইন্ডার ও ইনকামিং কলে সাউন্ড বাজাবে',
+    reminderVibration: 'কম্পন (ভাইব্রেশন)',
+    reminderVibrationDesc: 'রিমাইন্ডার ও ইনকামিং কলে ফোন কম্পন করবে',
+    reminderVoiceReadout: 'ভয়েস পড়ে শোনানো',
+    reminderVoiceReadoutDesc: 'রিমাইন্ডার আপনার ভাষায় উচ্চস্বরে পড়ে শোনাবে',
+    sendTestReminder: 'টেস্ট রিমাইন্ডার পাঠান',
+    testReminderTitle: 'টেস্ট রিমাইন্ডার',
+    testReminderBody: 'রিমাইন্ডার কাজ করছে। পরবর্তী ডোজের সময় নির্ধারিত সময়ে অ্যালার্ট পাবেন।',
+    notificationPermissionNeeded: 'রিমাইন্ডারের জন্য নোটিফিকেশন অনুমতি প্রয়োজন। সিস্টেম সেটিংসে Meditalk-এর জন্য নোটিফিকেশন চালু করুন।',
+    customTimesHint: 'ওষুধ যোগ করার সময় নিজের পছন্দের রিমাইন্ডার সময় যোগ করতে পারেন।',
+    addReminderTime: '+ রিমাইন্ডার সময় যোগ করুন',
+
+    // Health chat (AI assistant)
+    aiChatTitle: 'এআই স্বাস্থ্য সহকারী',
+    aiChatSubtitle: 'লক্ষণ, ওষুধ বা ঘরোয়া যত্ন সম্পর্কে জিজ্ঞাসা করুন',
+    aiGreeting: 'আমি আপনার এআই স্বাস্থ্য সহকারী। আপনার লক্ষণ বা চিকিৎসা সংক্রান্ত প্রশ্ন বাংলা বা ইংরেজিতে লিখুন — আমি দিকনির্দেশনা দেব।',
+    aiThinking: 'ভাবছি…',
+    aiInputPlaceholder: 'আপনার লক্ষণ বা প্রশ্ন লিখুন…',
+    aiDisclaimer: 'এই এআই নির্দেশনা শিক্ষামূলক, এটি রোগ নির্ণয় নয়। চিকিৎসা সিদ্ধান্তের জন্য সর্বদা যোগ্য চিকিৎসকের পরামর্শ নিন।',
+    aiRelatedConditions: 'সম্পর্কিত রোগ',
+    aiEmergencyTitle: 'এটি জরুরি পরিস্থিতি হতে পারে',
+    aiEmergencyBody: 'অবিলম্বে ৯৯৯-এ কল করুন অথবা জরুরি সেবা খুলুন। অপেক্ষা করবেন না।',
+    askAiAction: 'এআইকে জিজ্ঞাসা',
+    directoryAction: 'গাইড দেখুন',
+    aiSuggestFever: 'আমার জ্বর আছে',
+    aiSuggestHeadache: '২ দিন ধরে মাথাব্যথা',
+    aiSuggestStomach: 'পেট ব্যথা',
+    aiSuggestBreathing: 'শ্বাস নিতে কষ্ট হচ্ছে',
+    aiSuggestMedicine: 'ওষুধ কীভাবে খাব?',
+    aiNoMatch: 'মিল পাওয়া যায়নি। লক্ষণটি অন্যভাবে লিখুন, অথবা স্বাস্থ্য চ্যাটের ডিরেক্টরি দেখুন।',
+
+    // Calls & realtime
+    callHistory: 'কল ইতিহাস',
+    calls: 'কল',
+    incomingCall: 'ইনকামিং কল',
+    outgoingCall: 'আউটগোয়িং',
+    missedCall: 'মিসড',
+    declinedCall: 'প্রত্যাখ্যাত',
+    callEnded: 'কল শেষ',
+    ringing: 'রিং হচ্ছে…',
+    connecting: 'সংযুক্ত হচ্ছে…',
+    connected: 'সংযুক্ত',
+    acceptCall: 'রিসিভ',
+    declineCall: 'প্রত্যাখ্যান',
+    endCall: 'কল শেষ করুন',
+    audioCall: 'অডিও কল',
+    videoCall: 'ভিডিও কল',
+    noCallHistory: 'এখনো কোনো কল নেই।',
+    callBack: 'আবার কল করুন',
+    typing: 'লিখছেন…',
+    peerOffline: 'এখন অফলাইনে আছেন',
+    mediaPending: 'অডিও ও ভিডিও এখানে সংযুক্ত হবে',
+    mute: 'মিউট',
+    unmute: 'আনমিউট',
+    speaker: 'স্পিকার',
+    liveChat: 'লাইভ চ্যাট',
+    mediaStarting: 'ক্যামেরা ও মাইক চালু হচ্ছে…',
+    mediaLive: 'লাইভ অডিও ও ভিডিও',
+    mediaFailed: 'মিডিয়া সংযোগ ব্যর্থ হয়েছে',
+    mediaHint: 'উভয় পক্ষ লাইভ অডিও ও ভিডিও পাঠাচ্ছে',
+    devBuildTitle: 'ইন-অ্যাপ কলে ডেভেলপমেন্ট বিল্ড প্রয়োজন',
   },
 };

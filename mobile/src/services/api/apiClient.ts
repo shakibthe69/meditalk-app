@@ -6,12 +6,7 @@ const BACKEND_PORT = 8080;
 const DEFAULT_BACKEND_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080';
 
 export const getApiBaseUrl = (): string => {
-  const configuredBaseUrl = (process.env.EXPO_PUBLIC_API_BASE_URL || '').trim();
-  if (configuredBaseUrl) {
-    return configuredBaseUrl.replace(/\/$/, '');
-  }
-
-  // 1. If running in a browser, prefer the local backend running on the same machine.
+  // 1. If running in a browser, connect to local backend or current hostname backend
   if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.hostname) {
     const host = window.location.hostname;
     if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') {
@@ -20,7 +15,7 @@ export const getApiBaseUrl = (): string => {
     return `http://${host}:${BACKEND_PORT}`;
   }
 
-  // 2. If running inside Expo Go / React Native on Android or iOS
+  // 2. If running inside Expo Go / React Native on Android or iOS, auto-detect Metro server IP
   const hostUri =
     Constants.expoConfig?.hostUri ||
     (Constants as any).manifest2?.extra?.expoClient?.hostUri ||
@@ -28,12 +23,22 @@ export const getApiBaseUrl = (): string => {
 
   if (hostUri) {
     const ip = hostUri.split(':')[0];
-    if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
+    if (ip && ip !== 'localhost' && ip !== '127.0.0.1' && ip !== '0.0.0.0') {
       return `http://${ip}:${BACKEND_PORT}`;
     }
   }
 
-  // 3. Local fallback for the same machine.
+  // 3. Check explicitly configured base URL from environment
+  const configuredBaseUrl = (process.env.EXPO_PUBLIC_API_BASE_URL || '').trim();
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/$/, '');
+  }
+
+  // 4. Android Emulator / iOS Simulator / Local machine fallback
+  if (Platform.OS === 'android') {
+    return `http://10.0.2.2:${BACKEND_PORT}`;
+  }
+
   return DEFAULT_BACKEND_URL;
 };
 

@@ -10,6 +10,7 @@ import com.meditalk.entities.Medicine;
 import com.meditalk.entities.MedicineSchedule;
 import com.meditalk.entities.Prescription;
 import com.meditalk.entities.User;
+import com.meditalk.exceptions.DuplicatePrescriptionException;
 import com.meditalk.exceptions.ResourceNotFoundException;
 import com.meditalk.entities.MedicineLog;
 import com.meditalk.repositories.DoctorRepository;
@@ -70,6 +71,21 @@ public class PrescriptionService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
+        // Guard against saving the same prescription twice (which would create duplicate
+        // medicines, reminder schedules and today's dose logs).
+        if (!Boolean.TRUE.equals(request.getAllowDuplicate())) {
+            String incoming = fingerprint(request.getDoctorName(), request.getPrescriptionDate(),
+                    request.getMedicines() == null ? List.of() : request.getMedicines().stream()
+                            .map(m -> m.getName() + "|" + m.getDose())
+                            .collect(Collectors.toList()));
+            boolean duplicate = prescriptionRepository.findByUserIdOrderByPrescriptionDateDesc(userId).stream()
+                    .anyMatch(existing -> fingerprint(existing).equals(incoming));
+            if (duplicate) {
+                throw new DuplicatePrescriptionException(
+                        "This prescription already exists in your records. Open it from your history, or confirm to save a copy.");
+            }
+        }
+
         Doctor doctor = null;
         if (request.getDoctorId() != null) {
             doctor = doctorRepository.findByIdAndUserId(request.getDoctorId(), userId).orElse(null);
@@ -96,7 +112,8 @@ public class PrescriptionService {
                         .prescription(savedPrescription)
                         .name(medReq.getName())
                         .genericName(medReq.getGenericName())
-                        .dose(medReq.getDose())
+                        // An unreadable strength is stored empty, never invented.
+                        .dose(medReq.getDose() != null ? medReq.getDose().trim() : "")
                         .form(medReq.getForm() != null ? medReq.getForm() : "TABLET")
                         .frequency(medReq.getFrequency() != null ? medReq.getFrequency() : "ONCE_DAILY")
                         .foodInstruction(medReq.getFoodInstruction() != null ? medReq.getFoodInstruction() : "AFTER_MEAL")
@@ -125,11 +142,13 @@ public class PrescriptionService {
                         createdSchedules.add(schedule);
                     }
                 } else {
+                    // No reminder time was stated/selected: create one editable morning
+                    // reminder so the medicine still appears in the reminder list.
                     MedicineSchedule defaultSchedule = MedicineSchedule.builder()
                             .medicine(savedMed)
                             .time("08:00 AM")
                             .label("MORNING")
-                            .dosageAmount("1 Tablet")
+                            .dosageAmount("1 dose")
                             .foodInstruction(savedMed.getFoodInstruction())
                             .isEnabled(true)
                             .build();
@@ -160,6 +179,34 @@ public class PrescriptionService {
         }
 
         return mapToResponse(savedPrescription);
+    }
+
+    /**
+     * Content fingerprint used to detect a prescription the patient already saved.
+     * Deliberately excludes the OCR text and image so re-scanning the same page is caught.
+     */
+    private String fingerprint(Prescription prescription) {
+        List<String> medicines = prescription.getMedicines().stream()
+                .map(m -> m.getName() + "|" + m.getDose())
+                .collect(Collectors.toList());
+        return fingerprint(prescription.getDoctorName(), prescription.getPrescriptionDate(), medicines);
+    }
+
+    static String fingerprint(String doctorName, java.time.LocalDate date, List<String> medicines) {
+        String doctor = normalizeKey(doctorName);
+        String day = date != null ? date.toString() : "";
+        String meds = medicines.stream()
+                .map(PrescriptionService::normalizeKey)
+                .sorted()
+                .collect(Collectors.joining(","));
+        return doctor + "#" + day + "#" + meds;
+    }
+
+    private static String normalizeKey(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.toLowerCase().replaceAll("[^a-z0-9]", "");
     }
 
     @Transactional

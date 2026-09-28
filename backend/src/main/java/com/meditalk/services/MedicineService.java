@@ -74,7 +74,7 @@ public class MedicineService {
                 .prescription(prescription)
                 .name(request.getName())
                 .genericName(request.getGenericName())
-                .dose(request.getDose())
+                .dose(normalizeDose(request.getDose()))
                 .form(request.getForm() != null ? request.getForm() : "TABLET")
                 .frequency(request.getFrequency() != null ? request.getFrequency() : "ONCE_DAILY")
                 .foodInstruction(request.getFoodInstruction() != null ? request.getFoodInstruction() : "AFTER_MEAL")
@@ -145,7 +145,7 @@ public class MedicineService {
 
         medicine.setName(request.getName());
         medicine.setGenericName(request.getGenericName());
-        medicine.setDose(request.getDose());
+        medicine.setDose(normalizeDose(request.getDose()));
         medicine.setForm(request.getForm());
         medicine.setFrequency(request.getFrequency());
         medicine.setFoodInstruction(request.getFoodInstruction());
@@ -192,6 +192,14 @@ public class MedicineService {
         Medicine medicine = medicineRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Medicine not found with id: " + id));
         medicineRepository.delete(medicine);
+    }
+
+    /**
+     * An unreadable or omitted strength is stored as an empty string: the column is
+     * NOT NULL, and MediTalk never fabricates a dose.
+     */
+    private static String normalizeDose(String dose) {
+        return dose == null ? "" : dose.trim();
     }
 
     public MedicineResponse mapToResponse(Medicine med) {
