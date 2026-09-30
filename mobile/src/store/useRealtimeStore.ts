@@ -8,7 +8,7 @@ import {
   SignalEvent,
 } from '../types';
 import { realtimeClient } from '../services/realtime/realtimeClient';
-import { callApi } from '../services/api';
+import { callApi, AdminChatMessage } from '../services/api';
 import { mediaEngine, MediaConnectionState, MediaStreamLike } from '../services/webrtc';
 
 const TERMINAL_DISPLAY_MS = 1800;
@@ -53,6 +53,9 @@ interface RealtimeState {
 
   /** Latest admin-authored notification, surfaced as an in-app notice. */
   adminNotice: { title: string; body: string; at: number } | null;
+
+  /** Latest patient ↔ admin support message, delivered live to open chat screens. */
+  lastAdminMessage: { seq: number; message: AdminChatMessage } | null;
 
   init: (token: string, myUserId?: string | number) => void;
   teardown: () => void;
@@ -323,6 +326,13 @@ export const useRealtimeStore = create<RealtimeState>((set, get) => {
         });
       }),
 
+      // Patient ↔ admin support message, echoed to both parties (and to the
+      // patient's own devices), so open conversations update live.
+      realtimeClient.on('admin.message', (payload: AdminChatMessage) => {
+        if (!payload?.id) return;
+        set({ lastAdminMessage: { seq: ++sequence, message: payload } });
+      }),
+
       realtimeClient.on('error', (payload: unknown) => {
         if (payload) console.warn('Realtime error:', payload);
       }),
@@ -349,6 +359,7 @@ export const useRealtimeStore = create<RealtimeState>((set, get) => {
     callHistory: [],
     isLoadingHistory: false,
     adminNotice: null,
+    lastAdminMessage: null,
 
     init: (token, myUserId) => {
       if (!token) return;
@@ -396,6 +407,7 @@ export const useRealtimeStore = create<RealtimeState>((set, get) => {
         lastCallOutcome: null,
         callHistory: [],
         adminNotice: null,
+        lastAdminMessage: null,
       });
     },
 

@@ -21,11 +21,13 @@ import {
   AdherenceRing,
   MedicineDoseCard,
   AddMedicineModal,
+  MedicineDetailModal,
   AddPrescriptionModal,
   AddReportModal,
   ExportPdfModal,
   EmergencyModal,
   CallHistoryModal,
+  NotificationBell,
 } from '../../src/components';
 import {
   Plus,
@@ -43,23 +45,17 @@ import {
   Siren,
   MessageCircle,
   Stethoscope,
-  MapPin,
-  PhoneCall,
-  Video,
   History,
-  Megaphone,
 } from 'lucide-react-native';
 
 import { prescriptionApi, reportApi, doctorPortalApi } from '../../src/services/api';
-import { Prescription, MedicalReport, DoctorPost, DoctorPortalAccount } from '../../src/types';
+import { Prescription, MedicalReport, DoctorPost } from '../../src/types';
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
   const { todayLogs, adherence, markDose, fetchMedicines, fetchTodayLogs, fetchAdherence, isLoading } = useMedicineStore();
   const { language, voiceEnabled, t, toggleLanguage, toggleVoice } = useSettingsStore();
-  const onlineUserIds = useRealtimeStore((s) => s.onlineUserIds);
-  const startCall = useRealtimeStore((s) => s.startCall);
 
   const [showAddMedModal, setShowAddMedModal] = useState(false);
   const [showScanRxModal, setShowScanRxModal] = useState(false);
@@ -67,24 +63,23 @@ export default function DashboardScreen() {
   const [showExportPdfModal, setShowExportPdfModal] = useState(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [showCallHistory, setShowCallHistory] = useState(false);
+  // Additive: medicine name tapped on a dose card opens general Medicine Details.
+  const [infoMedicineName, setInfoMedicineName] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [recentPrescription, setRecentPrescription] = useState<Prescription | null>(null);
   const [recentReport, setRecentReport] = useState<MedicalReport | null>(null);
   const [latestDoctorPost, setLatestDoctorPost] = useState<DoctorPost | null>(null);
   const [doctorPosts, setDoctorPosts] = useState<DoctorPost[]>([]);
-  const [doctors, setDoctors] = useState<DoctorPortalAccount[]>([]);
-  const [doctorsLoading, setDoctorsLoading] = useState(true);
 
   const loadDashboardData = async () => {
     try {
-      const [_, __, ___, rxRes, repRes, postRes, dirRes] = await Promise.allSettled([
+      const [_, __, ___, rxRes, repRes, postRes] = await Promise.allSettled([
         fetchMedicines(),
         fetchTodayLogs(),
         fetchAdherence(),
         prescriptionApi.getPrescriptions(),
         reportApi.getReports(),
         doctorPortalApi.getAllPosts(),
-        doctorPortalApi.getDoctorDirectory(),
       ]);
 
       if (rxRes.status === 'fulfilled' && Array.isArray(rxRes.value) && rxRes.value.length > 0) {
@@ -99,45 +94,10 @@ export default function DashboardScreen() {
           setLatestDoctorPost(postRes.value[0]);
         }
       }
-      if (dirRes.status === 'fulfilled' && Array.isArray(dirRes.value)) {
-        setDoctors(dirRes.value);
-      }
     } catch (err) {
       console.log('Error refreshing dashboard:', err);
-    } finally {
-      setDoctorsLoading(false);
     }
   };
-
-  /**
-   * Registered doctors, online first then most recently active.
-   * The dashboard previews the top three; "See all" opens the full directory.
-   */
-  const sortedDoctors = useMemo(() => {
-    return [...doctors].sort((a, b) => {
-      if (!!a.isAvailable !== !!b.isAvailable) return a.isAvailable ? -1 : 1;
-      const ta = a.lastActiveAt ? new Date(a.lastActiveAt).getTime() : 0;
-      const tb = b.lastActiveAt ? new Date(b.lastActiveAt).getTime() : 0;
-      if (ta !== tb) return tb - ta;
-      return (a.fullName || '').localeCompare(b.fullName || '');
-    });
-  }, [doctors]);
-
-  /** A doctor counts as live when their socket is open, or they set availability. */
-  const isDoctorLive = (doctor: DoctorPortalAccount) =>
-    onlineUserIds.includes(String(doctor.userId)) || !!doctor.isAvailable;
-
-  const onlineDoctorsCount = useMemo(
-    () => doctors.filter((d) => isDoctorLive(d)).length,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doctors, onlineUserIds]
-  );
-
-  const handleStartCall = (doctor: DoctorPortalAccount, callType: 'AUDIO' | 'VIDEO') => {
-    startCall(String(doctor.userId), doctor.fullName, callType);
-  };
-
-  const previewDoctors = useMemo(() => sortedDoctors.slice(0, 3), [sortedDoctors]);
 
   /** Find Doctors opens the dedicated full-screen directory, never the home tab. */
   const openDoctorDirectory = () => {
@@ -194,6 +154,9 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.headerRight}>
+          {/* Notification centre */}
+          <NotificationBell />
+
           {/* Language Switcher */}
           <TouchableOpacity
             style={styles.headerIconBtn}
@@ -347,11 +310,6 @@ export default function DashboardScreen() {
           >
             <View style={[styles.quickActionIcon, { backgroundColor: palette.blue50 }]}>
               <Stethoscope size={20} color={palette.blue600} />
-              {onlineDoctorsCount > 0 ? (
-                <View style={styles.quickActionBadge}>
-                  <Text style={styles.quickActionBadgeText}>{onlineDoctorsCount}</Text>
-                </View>
-              ) : null}
             </View>
             <Text style={styles.quickActionLabel}>{t.findDoctors}</Text>
           </TouchableOpacity>
@@ -385,132 +343,32 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Find Doctors — registered & active doctors, one tap to call or message */}
-        <View style={styles.sectionHeaderRow}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionHeading}>{t.findDoctors}</Text>
-            {onlineDoctorsCount > 0 ? (
-              <View style={styles.onlineCountPill}>
-                <View style={styles.onlineCountDot} />
-                <Text style={styles.onlineCountText}>
-                  {onlineDoctorsCount} {t.doctorsOnline}
-                </Text>
-              </View>
-            ) : null}
+        {/* Find Doctors entry — the doctors list now lives ONLY on the Find Doctors page */}
+        <TouchableOpacity activeOpacity={0.9} onPress={openDoctorDirectory}>
+          <View style={styles.findDoctorsCard}>
+            <View style={styles.findDoctorsIconCircle}>
+              <Stethoscope size={22} color={palette.white} />
+            </View>
+            <View style={styles.findDoctorsText}>
+              <Text style={styles.findDoctorsTitle}>{t.findDoctors}</Text>
+              <Text style={styles.findDoctorsSubtitle}>
+                {language === 'bn'
+                  ? 'নিবন্ধিত ডাক্তারদের তালিকা দেখুন, চ্যাট করুন বা কল করুন'
+                  : 'Browse the full doctors list, chat or call'}
+              </Text>
+            </View>
+            <ChevronRight size={20} color={palette.teal600} />
           </View>
-          <View style={styles.sectionHeaderActions}>
-            <TouchableOpacity
-              style={styles.callsBtn}
-              activeOpacity={0.8}
-              onPress={() => setShowCallHistory(true)}
-            >
-              <History size={13} color={palette.teal700} />
-              <Text style={styles.callsBtnText}>{t.calls}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={openDoctorDirectory}>
-              <Text style={styles.seeAllText}>{t.seeAllDoctors}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        </TouchableOpacity>
 
-        {doctorsLoading ? (
-          <Card style={styles.doctorLoadingCard}>
-            <ActivityIndicator size="small" color={palette.teal600} />
-          </Card>
-        ) : previewDoctors.length === 0 ? (
-          <Card style={styles.doctorEmptyCard}>
-            <Stethoscope size={26} color={palette.slate300} />
-            <Text style={styles.doctorEmptyText}>
-              {language === 'bn'
-                ? 'এখনো কোনো ডাক্তার নিবন্ধিত হননি।'
-                : 'No doctors are registered yet.'}
-            </Text>
-          </Card>
-        ) : (
-          <View style={styles.doctorList}>
-            {previewDoctors.map((doc) => (
-              <TouchableOpacity
-                key={doc.id}
-                activeOpacity={0.9}
-                onPress={openDoctorDirectory}
-              >
-                <Card style={styles.doctorCard}>
-                  <View style={styles.doctorRow}>
-                    <View style={styles.doctorAvatar}>
-                      <Stethoscope size={20} color={palette.teal700} />
-                    </View>
-                    <View style={styles.doctorInfo}>
-                      <View style={styles.doctorNameRow}>
-                        <Text style={styles.doctorFullName} numberOfLines={1}>
-                          {doc.fullName}
-                        </Text>
-                        <View
-                          style={[
-                            styles.statusPill,
-                            isDoctorLive(doc) ? styles.statusPillOnline : styles.statusPillOffline,
-                          ]}
-                        >
-                          <View
-                            style={[
-                              styles.statusDot,
-                              { backgroundColor: isDoctorLive(doc) ? palette.success500 : palette.slate400 },
-                            ]}
-                          />
-                          <Text
-                            style={[
-                              styles.statusText,
-                              { color: isDoctorLive(doc) ? palette.success700 : palette.slate500 },
-                            ]}
-                          >
-                            {isDoctorLive(doc) ? t.onlineNow : t.offlineNow}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text style={styles.doctorSpec} numberOfLines={1}>
-                        {doc.specialization}
-                      </Text>
-                      {doc.hospitalOrClinic ? (
-                        <View style={styles.doctorMetaRow}>
-                          <MapPin size={11} color={palette.slate400} />
-                          <Text style={styles.doctorMetaText} numberOfLines={1}>
-                            {doc.hospitalOrClinic}
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  </View>
-
-                  <View style={styles.doctorActions}>
-                    <TouchableOpacity
-                      style={styles.doctorChatBtn}
-                      activeOpacity={0.8}
-                      onPress={openDoctorDirectory}
-                    >
-                      <MessageCircle size={14} color={palette.white} />
-                      <Text style={styles.doctorChatText}>{t.message}</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.doctorActionIconBtn}
-                      onPress={() => handleStartCall(doc, 'VIDEO')}
-                      accessibilityLabel={t.videoCall}
-                    >
-                      <Video size={16} color={palette.teal700} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.doctorActionIconBtn}
-                      onPress={() => handleStartCall(doc, 'AUDIO')}
-                      accessibilityLabel={t.audioCall}
-                    >
-                      <PhoneCall size={16} color={palette.teal700} />
-                    </TouchableOpacity>
-                  </View>
-                </Card>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+        <TouchableOpacity
+          style={styles.callsBtnFull}
+          activeOpacity={0.8}
+          onPress={() => setShowCallHistory(true)}
+        >
+          <History size={14} color={palette.teal700} />
+          <Text style={styles.callsBtnText}>{t.calls}</Text>
+        </TouchableOpacity>
 
         {/* Today's Medicines Section */}
         <View style={styles.sectionHeaderRow}>
@@ -538,6 +396,7 @@ export default function DashboardScreen() {
                 log={log}
                 onTake={handleTake}
                 onSkip={handleSkip}
+                onShowInfo={(name) => setInfoMedicineName(name)}
               />
             ))
           )}
@@ -640,14 +499,14 @@ export default function DashboardScreen() {
         {/* Doctor Updates & Health Newsfeed */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionHeading}>{language === 'bn' ? 'ডাক্তারদের স্বাস্থ্য নিউজফিড' : 'Doctor Health Newsfeed'}</Text>
-          <TouchableOpacity onPress={openDoctorDirectory} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <TouchableOpacity onPress={() => router.push('/doctor-posts')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Text style={styles.seeAllText}>{language === 'bn' ? 'সকল আপডেট দেখুন' : 'See All News'}</Text>
             <ChevronRight size={14} color={palette.teal600} />
           </TouchableOpacity>
         </View>
 
         {doctorPosts.length === 0 ? (
-          <TouchableOpacity activeOpacity={0.9} onPress={openDoctorDirectory}>
+          <TouchableOpacity activeOpacity={0.9} onPress={() => router.push('/doctor-posts')}>
             <Card style={styles.previewCard}>
               <View style={styles.previewRow}>
                 <View style={styles.previewLeft}>
@@ -668,8 +527,8 @@ export default function DashboardScreen() {
             </Card>
           </TouchableOpacity>
         ) : (
-          doctorPosts.slice(0, 2).map((post) => (
-            <TouchableOpacity key={post.id} activeOpacity={0.9} onPress={openDoctorDirectory}>
+          doctorPosts.slice(0, 3).map((post) => (
+            <TouchableOpacity key={post.id} activeOpacity={0.9} onPress={() => router.push('/doctor-posts')}>
               <Card style={styles.newsfeedCard}>
                 <View style={styles.newsfeedHeader}>
                   <View style={styles.newsfeedAvatar}>
@@ -723,6 +582,13 @@ export default function DashboardScreen() {
       </ScrollView>
 
       {/* Action Modals */}
+      {/* Additive: general Medicine Details opened by tapping a medicine name */}
+      <MedicineDetailModal
+        visible={infoMedicineName !== null}
+        medicineName={infoMedicineName}
+        onClose={() => setInfoMedicineName(null)}
+      />
+
       <AddMedicineModal
         visible={showAddMedModal}
         onClose={() => setShowAddMedModal(false)}
@@ -1129,6 +995,52 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     fontWeight: '700',
     color: palette.teal700,
+  },
+  callsBtnFull: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: palette.teal50,
+    borderWidth: 1,
+    borderColor: palette.teal100,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 9,
+    borderRadius: borderRadius.full,
+    marginBottom: spacing.base,
+  },
+  findDoctorsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: palette.teal200,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    ...shadows.sm,
+  },
+  findDoctorsIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: palette.teal600,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.md,
+  },
+  findDoctorsText: {
+    flex: 1,
+  },
+  findDoctorsTitle: {
+    fontSize: typography.sizes.base,
+    fontWeight: '800',
+    color: palette.slate900,
+  },
+  findDoctorsSubtitle: {
+    fontSize: typography.sizes.xs,
+    color: palette.slate500,
+    marginTop: 1,
   },
   quickActionLabel: {
     fontSize: typography.sizes.xs,

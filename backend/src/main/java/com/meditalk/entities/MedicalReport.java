@@ -52,6 +52,15 @@ public class MedicalReport {
 
     private Long fileSizeBytes;
 
+    /**
+     * Raw uploaded bytes, kept verbatim in the database so the original report
+     * image survives even if the uploads folder is cleared, and so the generated
+     * PDF can embed the exact image the patient uploaded. Never re-encoded here.
+     */
+    @Lob
+    @Column(name = "file_data", columnDefinition = "MEDIUMBLOB")
+    private byte[] fileData;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
@@ -100,6 +109,9 @@ public class MedicalReport {
     public Long getFileSizeBytes() { return fileSizeBytes; }
     public void setFileSizeBytes(Long fileSizeBytes) { this.fileSizeBytes = fileSizeBytes; }
 
+    public byte[] getFileData() { return fileData; }
+    public void setFileData(byte[] fileData) { this.fileData = fileData; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
@@ -126,6 +138,7 @@ public class MedicalReport {
         public Builder fileType(String fileType) { r.setFileType(fileType); return this; }
         public Builder fileName(String fileName) { r.setFileName(fileName); return this; }
         public Builder fileSizeBytes(Long fileSizeBytes) { r.setFileSizeBytes(fileSizeBytes); return this; }
+        public Builder fileData(byte[] fileData) { r.setFileData(fileData); return this; }
 
         public MedicalReport build() { return r; }
     }

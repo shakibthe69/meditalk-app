@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
-
 @RestController
 @RequestMapping("/api/ai")
 public class AiChatController {
@@ -55,8 +54,15 @@ public class AiChatController {
         List<MedicineResponse> medicines = contextService.getActiveMedicines(userId);
         String medicationContext = contextService.buildMedicationContext(medicines);
 
+        // Map the client-sent conversation turns so Gemini can hold a continuous dialogue.
+        List<GeminiAiChatService.ChatTurn> history = request.getHistory() == null ? List.of()
+                : request.getHistory().stream()
+                        .filter(turn -> turn != null && turn.getRole() != null && turn.getText() != null)
+                        .map(turn -> new GeminiAiChatService.ChatTurn(turn.getRole(), turn.getText()))
+                        .toList();
+
         GeminiAiChatService.ChatResult result =
-                geminiService.chat(request.getMessage(), language, medicationContext);
+                geminiService.chat(request.getMessage(), language, medicationContext, history);
 
         if (result.getText() != null && !result.getText().isBlank()) {
             AiChatResponse response = new AiChatResponse(result.getText(), language, "gemini");

@@ -12,3 +12,5 @@ export * from './callApi';
 export * from './activityApi';
 export * from './supportApi';
 export * from './adminApi';
+export * from './adminChatApi';
+export * from './medicineInfoApi';

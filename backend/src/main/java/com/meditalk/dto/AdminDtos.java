@@ -121,6 +121,24 @@ public final class AdminDtos {
             LocalDateTime lastMedicationInteraction,
             List<String> recentActions) {}
 
+    // ---------- Registered doctors ----------
+
+    /** A doctor account as seen by an administrator (no credentials exposed). */
+    public record DoctorSummary(
+            Long id,
+            Long userId,
+            String fullName,
+            String email,
+            String specialization,
+            String licenseNumber,
+            String hospitalOrClinic,
+            String phoneNumber,
+            String chamberAddress,
+            String visitingHours,
+            boolean available,
+            LocalDateTime createdAt,
+            LocalDateTime lastActiveAt) {}
+
     // ---------- Follow-up queue ----------
 
     public record FollowUp(

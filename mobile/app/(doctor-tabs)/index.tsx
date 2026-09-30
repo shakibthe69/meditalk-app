@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { palette, typography, spacing, borderRadius, shadows } from '../../src/theme';
-import { Card, Badge, EditDoctorProfileModal } from '../../src/components';
+import { Card, Badge, EditDoctorProfileModal, NotificationBell } from '../../src/components';
 import { useAuthStore } from '../../src/store';
 import { doctorPortalApi } from '../../src/services/api';
 import { DoctorPortalAccount } from '../../src/types';
@@ -92,7 +92,14 @@ export default function DoctorPortalScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.teal600} />
         }
-      >        {/* Profile Card */}
+      >
+        {/* Top bar with the shared notification centre */}
+        <View style={styles.topBar}>
+          <Text style={styles.topBarTitle}>Doctor Portal</Text>
+          <NotificationBell />
+        </View>
+
+        {/* Profile Card */}
         <Card style={styles.profileCard}>
           <View style={styles.avatarRow}>
             <View style={styles.avatar}>
@@ -384,6 +391,17 @@ const styles = StyleSheet.create({
   availabilityTitle: {
     fontSize: typography.sizes.base,
     fontWeight: '700',
+    color: palette.slate900,
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  topBarTitle: {
+    fontSize: typography.sizes.lg,
+    fontWeight: '800',
     color: palette.slate900,
   },
   availabilitySubtitle: {

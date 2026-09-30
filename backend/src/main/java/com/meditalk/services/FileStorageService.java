@@ -62,4 +62,35 @@ public class FileStorageService {
     public Path getFilePath(String fileName) {
         return this.fileStorageLocation.resolve(fileName).normalize();
     }
+
+    /**
+     * Reads the raw bytes of a previously stored file from its public URL
+     * (either {@code /uploads/abc.jpg} or an absolute {@code http://host/uploads/abc.jpg}).
+     * Returns null when the reference is empty, unsafe or no longer on disk, so a
+     * missing attachment never breaks saving a report.
+     */
+    public byte[] readBytesByUrl(String fileUrl) {
+        if (fileUrl == null) {
+            return null;
+        }
+        String trimmed = fileUrl.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        int slash = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+        String name = slash >= 0 ? trimmed.substring(slash + 1) : trimmed;
+        if (name.isEmpty() || name.contains("..")) {
+            return null;
+        }
+        try {
+            Path path = this.fileStorageLocation.resolve(name).normalize();
+            if (!path.startsWith(this.fileStorageLocation) || !Files.exists(path)) {
+                return null;
+            }
+            return Files.readAllBytes(path);
+        } catch (IOException ex) {
+            log.warn("Could not read stored file {}: {}", name, ex.getMessage());
+            return null;
+        }
+    }
 }

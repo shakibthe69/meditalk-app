@@ -55,6 +55,11 @@ export interface TranslationDict {
   duplicateTitle: string;
   duplicateMsg: string;
   saveAnyway: string;
+  namelessMedicineAlert: string;
+  namelessMedicineMsg: string;
+  incompleteWarningTitle: string;
+  incompleteWarningMsg: string;
+  keepEditing: string;
   rawOcrTextLabel: string;
   rawOcrTextDesc: string;
   runAiParser: string;
@@ -256,6 +261,33 @@ export interface TranslationDict {
   mediaFailed: string;
   mediaHint: string;
   devBuildTitle: string;
+
+  // Medicine Details (general online info — additive feature)
+  medicineDetailsTitle: string;
+  medicineInfoLoading: string;
+  medicineInfoNotFound: string;
+  medicineInfoNotFoundSub: string;
+  medicineInfoLoadFailed: string;
+  medicineInfoRetry: string;
+  medicineYourPrescription: string;
+  medicineScheduleLabel: string;
+  medicineMealLabel: string;
+  medicineFromPrescriptionNote: string;
+  medicineAbout: string;
+  medicineUses: string;
+  medicineUsesSub: string;
+  medicineDosageInfo: string;
+  medicineSideEffects: string;
+  medicineWarnings: string;
+  medicineContraindications: string;
+  medicineInteractions: string;
+  medicineStorage: string;
+  medicinePrice: string;
+  medicinePriceUnavailable: string;
+  medicinePriceVaryNote: string;
+  medicineSource: string;
+  medicineLastUpdated: string;
+  medicineEducationalNote: string;
 }
 
 export const translations: Record<AppLanguage, TranslationDict> = {
@@ -318,6 +350,13 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     duplicateMsg:
       'A matching prescription is already in your records. Open it from your history, or save another copy if this is a different prescription.',
     saveAnyway: 'Save anyway',
+    namelessMedicineAlert: 'Medicine name missing',
+    namelessMedicineMsg:
+      'A medicine with no name cannot be saved or turned into a reminder. Add the name exactly as written on the prescription, or remove that row.',
+    incompleteWarningTitle: 'Some details could not be read',
+    incompleteWarningMsg:
+      'MediTalk never guesses values. For the medicines listed below the strength/dose or the dose schedule is missing, so they will be saved with the dose marked as not readable and a single reminder at 08:00 AM. You can correct them later.',
+    keepEditing: 'Keep editing',
     rawOcrTextLabel: 'Extracted Raw OCR Text',
     rawOcrTextDesc: 'Review or edit any extracted characters before running the AI structured parser:',
     runAiParser: 'Run AI Structure Parser',
@@ -521,6 +560,33 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     mediaFailed: 'Media connection failed',
     mediaHint: 'Both sides are streaming live audio and video',
     devBuildTitle: 'In-app calls need a development build',
+
+    // Medicine Details (general online info — additive feature)
+    medicineDetailsTitle: 'Medicine Details',
+    medicineInfoLoading: 'Loading medicine information...',
+    medicineInfoNotFound: 'Medicine information not found.',
+    medicineInfoNotFoundSub: 'We could not find reliable information for this medicine.',
+    medicineInfoLoadFailed: 'Unable to load online medicine information. Please try again later.',
+    medicineInfoRetry: 'Retry',
+    medicineYourPrescription: 'Your Prescription',
+    medicineScheduleLabel: 'Schedule',
+    medicineMealLabel: 'Meal',
+    medicineFromPrescriptionNote: 'From your MediTalk prescription. Online information never changes this.',
+    medicineAbout: 'About this medicine',
+    medicineUses: 'Uses',
+    medicineUsesSub: 'Why is it used?',
+    medicineDosageInfo: 'General dosage information',
+    medicineSideEffects: 'Common side effects',
+    medicineWarnings: 'Serious warnings',
+    medicineContraindications: 'Contraindications',
+    medicineInteractions: 'Drug interactions',
+    medicineStorage: 'Storage',
+    medicinePrice: 'Price',
+    medicinePriceUnavailable: 'Price information unavailable.',
+    medicinePriceVaryNote: 'Price may vary by pharmacy and location.',
+    medicineSource: 'Information source',
+    medicineLastUpdated: 'Last updated',
+    medicineEducationalNote: 'For educational purposes only. Discuss treatment decisions with a qualified healthcare professional.',
   },
   bn: {
     appName: 'মেডিটক',
@@ -581,6 +647,13 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     duplicateMsg:
       'একই প্রেসক্রিপশন আপনার রেকর্ডে আগেই আছে। ইতিহাস থেকে সেটি খুলুন, অথবা এটি ভিন্ন প্রেসক্রিপশন হলে নতুন কপি হিসেবে সংরক্ষণ করুন।',
     saveAnyway: 'তবুও সংরক্ষণ করুন',
+    namelessMedicineAlert: 'ওষুধের নাম নেই',
+    namelessMedicineMsg:
+      'নাম ছাড়া ওষুধ সংরক্ষণ করা যায় না বা তার রিমাইন্ডার তৈরি হয় না। প্রেসক্রিপশনে লেখা নাম যোগ করুন, অথবা সেই সারিটি মুছে ফেলুন।',
+    incompleteWarningTitle: 'কিছু তথ্য পড়া যায়নি',
+    incompleteWarningMsg:
+      'মেডিটক কোনো মান অনুমান করে বসায় না। নিচের ওষুধগুলোর পাওয়ার/মাত্রা বা সেবনের নিয়ম পাওয়া যায়নি, তাই সেগুলো “মাত্রা পড়া যায়নি” হিসেবে এবং সকাল ০৮:০০ টায় একটি রিমাইন্ডার দিয়ে সংরক্ষণ করা হবে। পরে সম্পাদনা করতে পারবেন।',
+    keepEditing: 'সম্পাদনা চালিয়ে যান',
     rawOcrTextLabel: 'সনাক্তকৃত ও সি আর টেক্সট',
     rawOcrTextDesc: 'স্বয়ংক্রিয়ভাবে সাজানোর পূর্বে টেক্সট যাচাই বা সংশোধন করতে পারেন:',
     runAiParser: 'ওষুধের তথ্য সনাক্ত করুন',
@@ -784,5 +857,32 @@ export const translations: Record<AppLanguage, TranslationDict> = {
     mediaFailed: 'মিডিয়া সংযোগ ব্যর্থ হয়েছে',
     mediaHint: 'উভয় পক্ষ লাইভ অডিও ও ভিডিও পাঠাচ্ছে',
     devBuildTitle: 'ইন-অ্যাপ কলে ডেভেলপমেন্ট বিল্ড প্রয়োজন',
+
+    // Medicine Details (general online info — additive feature)
+    medicineDetailsTitle: 'ওষুধের বিবরণ',
+    medicineInfoLoading: 'ওষুধের তথ্য লোড হচ্ছে...',
+    medicineInfoNotFound: 'ওষুধের তথ্য পাওয়া যায়নি।',
+    medicineInfoNotFoundSub: 'আমরা এই ওষুধের জন্য নির্ভরযোগ্য তথ্য খুঁজে পাইনি।',
+    medicineInfoLoadFailed: 'অনলাইন ওষুধের তথ্য লোড করা যায়নি। পরে আবার চেষ্টা করুন।',
+    medicineInfoRetry: 'আবার চেষ্টা করুন',
+    medicineYourPrescription: 'আপনার প্রেসক্রিপশন',
+    medicineScheduleLabel: 'সময়সূচি',
+    medicineMealLabel: 'খাবার',
+    medicineFromPrescriptionNote: 'এই তথ্য আপনার প্রেসক্রিপশন থেকে নেওয়া। অনলাইন তথ্য এটিকে পরিবর্তন করে না।',
+    medicineAbout: 'এই ওষুধ সম্পর্কে',
+    medicineUses: 'ব্যবহার',
+    medicineUsesSub: 'কেন ব্যবহৃত হয়?',
+    medicineDosageInfo: 'সাধারণ ডোজ তথ্য',
+    medicineSideEffects: 'সাধারণ পার্শ্বপ্রতিক্রিয়া',
+    medicineWarnings: 'সতর্কতা',
+    medicineContraindications: 'যেসব ক্ষেত্রে নিষিদ্ধ',
+    medicineInteractions: 'ওষুধের মিথস্ক্রিয়া',
+    medicineStorage: 'সংরক্ষণ',
+    medicinePrice: 'মূল্য',
+    medicinePriceUnavailable: 'মূল্য তথ্য পাওয়া যায়নি।',
+    medicinePriceVaryNote: 'ফার্মেসি ও এলাকাভেদে মূল্য ভিন্ন হতে পারে।',
+    medicineSource: 'তথ্যের উৎস',
+    medicineLastUpdated: 'সর্বশেষ হালনাগাদ',
+    medicineEducationalNote: 'শিক্ষামূলক তথ্য — চিকিৎসা সিদ্ধান্ত সবসময় যোগ্য চিকিৎসকের সাথে আলোচনা করুন।',
   },
 };

@@ -56,3 +56,32 @@ export interface AdherenceStats {
   totalMissed: number;
   totalSkipped: number;
 }
+
+/**
+ * General (educational) medicine information from trusted external sources
+ * (DailyMed / openFDA), fetched through the MediTalk backend.
+ * Never merged into the user's `Medicine` prescription records.
+ */
+export interface MedicineInfo {
+  queriedName?: string;
+  brandName?: string;
+  genericName?: string;
+  strength?: string;
+  dosageForm?: string;
+  description?: string;
+  uses?: string;
+  dosageInformation?: string;
+  sideEffects?: string;
+  warnings?: string;
+  contraindications?: string;
+  interactions?: string;
+  storage?: string;
+  source?: string;
+  sourceUrl?: string;
+  lastUpdated?: string;
+  price?: string | null;
+  priceNote?: string;
+  disclaimer?: string;
+  found: boolean;
+  cached?: boolean;
+}

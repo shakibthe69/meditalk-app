@@ -24,14 +24,32 @@ import java.util.Map;
  * ({@code HEALTH_CHAT_GEMINI_API_KEY}), which is deliberately separate from the
  * prescription-extraction credential. Keys stay server-side only.</p>
  *
- * <p>If the patient is authenticated, the caller may pass a short summary of their
- * confirmed medication records as context. Raw OCR text is never sent.</p>
+ * <p>Conversation continuity: the caller passes the recent chat turns so Gemini sees
+ * the dialogue as a whole and can refer back to earlier messages. If the patient is
+ * authenticated, the caller may also pass a short summary of their confirmed
+ * medication records as context. Raw OCR text is never sent.</p>
  */
 @Service
 public class GeminiAiChatService {
 
+    /** One prior conversation turn sent back to the model. */
+    public record ChatTurn(String role, String text) {
+        public ChatTurn {
+            if (text != null) {
+                text = text.strip();
+            }
+        }
+    }
+
     private static final Logger log = LoggerFactory.getLogger(GeminiAiChatService.class);
+    /** Default host used by Google AI Studio ("AIza…") API keys. */
     private static final String GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
+    /**
+     * Host used by Vertex AI / "Agent Platform" Express keys ("AQ.…"). These keys
+     * authenticate with {@code ?key=} and address models under a publishers path.
+     */
+    private static final String VERTEX_EXPRESS_BASE_URL =
+            "https://aiplatform.googleapis.com/v1/publishers/google/models/";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -61,6 +79,18 @@ public class GeminiAiChatService {
 
     @Value("${app.gemini.timeout-seconds:45}")
     private int timeoutSeconds;
+
+    /** Override the Generative Language host (rarely needed). */
+    @Value("${app.gemini.base-url:https://generativelanguage.googleapis.com/v1beta/models/}")
+    private String baseUrl;
+
+    /**
+     * Set to true when the configured key is a Vertex AI / Agent Platform Express
+     * key (those start with "AQ."). The same JSON contract is used, only the host,
+     * path and how the key travels differ.
+     */
+    @Value("${app.gemini.vertex-express:false}")
+    private boolean vertexExpress;
 
     private static final String SYSTEM_PROMPT_EN =
             "You are the MediTalk AI Health Assistant. You are an information assistant, not a doctor.\n"
@@ -120,6 +150,19 @@ public class GeminiAiChatService {
     }
 
     public ChatResult chat(String userMessage, String language, String medicationContext) {
+        return chat(userMessage, language, medicationContext, List.of());
+    }
+
+    public ChatResult chat(String userMessage, String language) {
+        return chat(userMessage, language, null, List.of());
+    }
+
+    /**
+     * Full entry point: system prompt + medication context + recent conversation turns
+     * + the new user message, sent to Gemini as a proper multi-turn dialogue.
+     */
+    public ChatResult chat(String userMessage, String language, String medicationContext,
+                           List<ChatTurn> history) {
         String apiKey = resolveApiKey();
         if (apiKey == null) {
             return ChatResult.unavailable("Health AI is not configured on the server (missing HEALTH_CHAT_GEMINI_API_KEY).");
@@ -129,7 +172,8 @@ public class GeminiAiChatService {
         }
 
         String systemPrompt = "bn".equalsIgnoreCase(language) ? SYSTEM_PROMPT_BN : SYSTEM_PROMPT_EN;
-        String prompt = buildPrompt(systemPrompt, medicationContext, userMessage);
+
+        List<Map<String, Object>> contents = buildContents(systemPrompt, medicationContext, history, userMessage);
 
         String lastError = null;
         // An access-level failure (bad/denied key, quota) explains the outage better than
@@ -137,7 +181,7 @@ public class GeminiAiChatService {
         String preferredError = null;
         for (String model : resolveModels()) {
             try {
-                String result = callGeminiModel(model, apiKey, prompt);
+                String result = callGeminiModel(model, apiKey, contents);
                 if (result != null && !result.isBlank()) {
                     lastFailure = null;
                     log.info("Health AI responded using model {}.", model);
@@ -146,7 +190,7 @@ public class GeminiAiChatService {
                 lastError = "The health AI returned an empty response.";
             } catch (HttpFailure e) {
                 log.warn("Health AI model {} failed: {}", model, e.getMessage());
-                lastError = describeFailure(e.status);
+                lastError = describeFailure(e);
                 if (e.status == 401 || e.status == 403 || e.status == 429) {
                     preferredError = lastError;
                 }
@@ -177,27 +221,66 @@ public class GeminiAiChatService {
         );
     }
 
-    public ChatResult chat(String userMessage, String language) {
-        return chat(userMessage, language, null);
-    }
-
-    private String buildPrompt(String systemPrompt, String medicationContext, String userMessage) {
-        StringBuilder sb = new StringBuilder(systemPrompt);
+    /**
+     * Builds the Gemini {@code contents} array: a first "user" part carrying the
+     * system prompt + patient medication context, then the recent turns in order,
+     * then the new user message. Keeps the request within a sane size.
+     */
+    private List<Map<String, Object>> buildContents(String systemPrompt, String medicationContext,
+                                                    List<ChatTurn> history, String userMessage) {
+        StringBuilder contextPart = new StringBuilder(systemPrompt);
         if (medicationContext != null && !medicationContext.isBlank()) {
-            sb.append("\n\nThe patient's own confirmed medication list (from their MediTalk records):\n")
+            contextPart.append("\n\nThe patient's own confirmed medication list (from their MediTalk records):\n")
                     .append(medicationContext)
                     .append("\nUse it only to answer questions about their medicines. Do not change or add to it.");
         }
-        sb.append("\n\nPatient message: \"").append(userMessage).append("\"");
-        return sb.toString();
+
+        List<Map<String, Object>> contents = new ArrayList<>();
+        contents.add(Map.of(
+                "role", "user",
+                "parts", List.of(Map.of("text", contextPart.toString()))
+        ));
+        // A user-context part must be followed by a model turn before the next user turn.
+        contents.add(Map.of(
+                "role", "model",
+                "parts", List.of(Map.of("text",
+                        "Understood. I will follow these guidelines and help the patient."))
+        ));
+
+        if (history != null && !history.isEmpty()) {
+            List<ChatTurn> trimmed = history.size() > MAX_HISTORY_TURNS
+                    ? history.subList(history.size() - MAX_HISTORY_TURNS, history.size())
+                    : history;
+            for (ChatTurn turn : trimmed) {
+                if (turn == null || turn.text() == null || turn.text().isBlank()) {
+                    continue;
+                }
+                boolean isModel = "model".equalsIgnoreCase(turn.role()) || "ai".equalsIgnoreCase(turn.role());
+                contents.add(Map.of(
+                        "role", isModel ? "model" : "user",
+                        "parts", List.of(Map.of("text", truncateTurn(turn.text())))
+                ));
+            }
+        }
+
+        contents.add(Map.of(
+                "role", "user",
+                "parts", List.of(Map.of("text", userMessage.strip()))
+        ));
+        return contents;
     }
 
-    private String callGeminiModel(String model, String apiKey, String prompt) throws Exception {
+    private String truncateTurn(String text) {
+        String trimmed = text.strip();
+        return trimmed.length() <= MAX_TURN_CHARS ? trimmed : trimmed.substring(0, MAX_TURN_CHARS) + "…";
+    }
+
+    private static final int MAX_HISTORY_TURNS = 12;
+    private static final int MAX_TURN_CHARS = 1500;
+
+    private String callGeminiModel(String model, String apiKey, List<Map<String, Object>> contents) throws Exception {
         Map<String, Object> payload = Map.of(
-                "contents", List.of(
-                        Map.of("role", "user",
-                                "parts", List.of(Map.of("text", prompt)))
-                ),
+                "contents", contents,
                 "generationConfig", Map.of(
                         "temperature", temperature,
                         "maxOutputTokens", maxOutputTokens,
@@ -206,20 +289,39 @@ public class GeminiAiChatService {
         );
 
         String jsonBody = objectMapper.writeValueAsString(payload);
-        String url = GEMINI_BASE_URL + model + ":generateContent";
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .header("Content-Type", "application/json")
-                .header("x-goog-api-key", apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                .timeout(Duration.ofSeconds(timeoutSeconds))
-                .build();
+                .timeout(Duration.ofSeconds(timeoutSeconds));
+
+        String url;
+        if (vertexExpress) {
+            url = VERTEX_EXPRESS_BASE_URL + model + ":generateContent?key=" + apiKey;
+        } else {
+            String host = (baseUrl != null && !baseUrl.isBlank()) ? baseUrl : GEMINI_BASE_URL;
+            url = host + model + ":generateContent";
+            requestBuilder.header("x-goog-api-key", apiKey);
+        }
+
+        HttpRequest request = requestBuilder.uri(URI.create(url)).build();
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
         if (response.statusCode() != 200) {
-            throw new HttpFailure(response.statusCode());
+            // Surface the provider's own explanation (e.g. "API not enabled") so
+            // the diagnostics endpoint tells the operator exactly what to fix.
+            String detail = null;
+            try {
+                JsonNode errorMessage = objectMapper.readTree(response.body())    
+                        .path("error").path("message");
+                if (!errorMessage.isMissingNode() && !errorMessage.asText().isBlank()) {
+                    detail = errorMessage.asText();
+                }
+            } catch (Exception ignored) {
+                // Body was not the expected JSON error envelope.
+            }
+            throw new HttpFailure(response.statusCode(), detail);
         }
 
         JsonNode root = objectMapper.readTree(response.body());
@@ -265,37 +367,47 @@ public class GeminiAiChatService {
             }
         }
         if (unique.isEmpty()) {
-            unique.add("gemini-3.8-flash");
+            unique.add(vertexExpress ? "gemini-2.5-flash" : "gemini-3.8-flash");
+        }
+        // Vertex does not serve every AI-Studio alias, so make sure at least one
+        // generally-available model is attempted as a last resort.
+        if (vertexExpress && !unique.contains("gemini-2.5-flash")) {
+            unique.add("gemini-2.5-flash");
         }
         return unique;
     }
 
-    private String describeFailure(int status) {
+    private String describeFailure(HttpFailure failure) {
+        int status = failure.status;
+        String base;
         if (status == 401) {
-            return "The health AI provider rejected the configured API key. Please check HEALTH_CHAT_GEMINI_API_KEY.";
+            base = "The health AI provider rejected the configured API key. Please check the Gemini/Vertex key.";
+        } else if (status == 403) {
+            base = vertexExpress
+                    ? "The health AI provider denied access. Enable the Agent Platform API "
+                            + "(aiplatform.googleapis.com) for the key's Google Cloud project."
+                    : "The health AI provider denied this key's Google Cloud project. Enable the "
+                            + "Generative Language API for that project or create a new key in Google AI Studio.";
+        } else if (status == 404) {
+            base = "The configured health AI model is unavailable. Please contact support.";
+        } else if (status == 429) {
+            base = "The health AI is busy right now. Please try again in a moment.";
+        } else if (status >= 500) {
+            base = "The health AI is temporarily unavailable. Please try again.";
+        } else {
+            base = "The health AI is temporarily unavailable.";
         }
-        if (status == 403) {
-            return "The health AI provider denied this API key's Google Cloud project (PERMISSION_DENIED). "
-                    + "Enable the Generative Language API for that project or create a new key in Google AI Studio.";
-        }
-        if (status == 404) {
-            return "The configured health AI model is unavailable. Please contact support.";
-        }
-        if (status == 429) {
-            return "The health AI is busy right now. Please try again in a moment.";
-        }
-        if (status >= 500) {
-            return "The health AI is temporarily unavailable. Please try again.";
-        }
-        return "The health AI is temporarily unavailable.";
+        return (failure.detail != null && !failure.detail.isBlank()) ? base + " (" + failure.detail + ")" : base;
     }
 
     private static class HttpFailure extends Exception {
         private final int status;
+        private final String detail;
 
-        HttpFailure(int status) {
+        HttpFailure(int status, String detail) {
             super("HTTP " + status);
             this.status = status;
+            this.detail = detail;
         }
     }
 }

@@ -122,7 +122,36 @@ public class PrescriptionScanningService {
             }
         }
 
+        // 3. No OCR text: read the prescription straight from the image with Gemini,
+        //    which is multimodal. This keeps scanning working with a single AI
+        //    credential and no separate OCR provider.
         if (ocrText == null || ocrText.isBlank()) {
+            if (extractionService.isConfigured()) {
+                log.info("No OCR text available; reading the prescription image directly with Gemini vision.");
+                GeminiPrescriptionExtractionService.ExtractionResult vision =
+                        extractionService.extractFromImage(preprocessed.getImageBytes(), preprocessed.getMimeType());
+
+                if (vision.isSuccess() && vision.getParsed() != null) {
+                    OcrParseResponse visionDraft = fromAi(vision.getParsed(), "", imageUrl,
+                            preprocessed.getSummary(), detectedLanguages, 0.85, "gemini-vision");
+                    visionDraft.setOcrEngine("gemini-vision");
+                    visionDraft.setExtractionSource("gemini");
+                    visionDraft.setRequiresUserVerification(true);
+                    String visionNote = "Read directly from the image by the AI. Please verify every "
+                            + "medicine, dose and time before saving.";
+                    String existingNotes = visionDraft.getNotes();
+                    visionDraft.setNotes(existingNotes == null || existingNotes.isBlank()
+                            ? visionNote : existingNotes + " " + visionNote);
+                    log.info("Gemini vision read {} medicine(s) from the image.",
+                            vision.getParsed().getMedicines().size());
+                    return new ScanResult(visionDraft, "gemini-vision");
+                }
+
+                if (vision.getErrorMessage() != null && !vision.getErrorMessage().isBlank()) {
+                    primaryError = vision.getErrorMessage();
+                }
+            }
+
             throw new BadRequestException(primaryError != null && !primaryError.isBlank()
                     ? primaryError
                     : "We could not read any text from this prescription. Please try a clearer, brighter photo.");

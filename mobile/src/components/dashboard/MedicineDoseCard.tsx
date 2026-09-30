@@ -12,12 +12,15 @@ interface MedicineDoseCardProps {
   log: MedicineLog;
   onTake: (id: string) => void;
   onSkip: (id: string) => void;
+  /** Optional: opens general Medicine Details for this medicine (additive). */
+  onShowInfo?: (medicineName: string) => void;
 }
 
 export const MedicineDoseCard: React.FC<MedicineDoseCardProps> = ({
   log,
   onTake,
   onSkip,
+  onShowInfo,
 }) => {
   const { language, t } = useSettingsStore();
 
@@ -99,7 +102,13 @@ export const MedicineDoseCard: React.FC<MedicineDoseCardProps> = ({
       </View>
 
       <View style={styles.mainInfo}>
-        <Text style={styles.medicineName}>{log.medicineName}</Text>
+        {onShowInfo ? (
+          <TouchableOpacity activeOpacity={0.6} onPress={() => onShowInfo(log.medicineName)}>
+            <Text style={[styles.medicineName, styles.medicineNameLink]}>{log.medicineName}</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.medicineName}>{log.medicineName}</Text>
+        )}
         <Text style={styles.dosageText}>
           {language === 'bn' ? 'মাত্রা' : 'Dosage'}: {log.dose}
         </Text>
@@ -204,6 +213,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: palette.slate900,
     marginBottom: 2,
+  },
+  medicineNameLink: {
+    textDecorationLine: 'underline',
+    textDecorationColor: palette.teal600,
   },
   dosageText: {
     fontSize: typography.sizes.sm,

@@ -8,6 +8,7 @@ import com.meditalk.entities.AdminContactLog;
 import com.meditalk.entities.AdminFollowUp;
 import com.meditalk.entities.AdminHelpRequest;
 import com.meditalk.entities.AdminNote;
+import com.meditalk.entities.DoctorAccount;
 import com.meditalk.entities.Medicine;
 import com.meditalk.entities.MedicineLog;
 import com.meditalk.entities.MedicineSchedule;
@@ -19,6 +20,7 @@ import com.meditalk.repositories.AdminContactLogRepository;
 import com.meditalk.repositories.AdminFollowUpRepository;
 import com.meditalk.repositories.AdminHelpRequestRepository;
 import com.meditalk.repositories.AdminNoteRepository;
+import com.meditalk.repositories.DoctorAccountRepository;
 import com.meditalk.repositories.MedicineLogRepository;
 import com.meditalk.repositories.MedicineRepository;
 import com.meditalk.repositories.PrescriptionRepository;
@@ -87,6 +89,7 @@ public class AdminMonitoringService {
     private final AdminNoteRepository noteRepository;
     private final AdminHelpRequestRepository helpRequestRepository;
     private final AdminAuditLogRepository auditLogRepository;
+    private final DoctorAccountRepository doctorAccountRepository;
     private final AdminProperties props;
     private final RealtimeHub realtimeHub;
 
@@ -99,6 +102,7 @@ public class AdminMonitoringService {
                                   AdminNoteRepository noteRepository,
                                   AdminHelpRequestRepository helpRequestRepository,
                                   AdminAuditLogRepository auditLogRepository,
+                                  DoctorAccountRepository doctorAccountRepository,
                                   AdminProperties props,
                                   RealtimeHub realtimeHub) {
         this.userRepository = userRepository;
@@ -110,8 +114,37 @@ public class AdminMonitoringService {
         this.noteRepository = noteRepository;
         this.helpRequestRepository = helpRequestRepository;
         this.auditLogRepository = auditLogRepository;
+        this.doctorAccountRepository = doctorAccountRepository;
         this.props = props;
         this.realtimeHub = realtimeHub;
+    }
+
+    /**
+     * All registered doctor accounts for the admin panel: professional profile,
+     * contact details, availability and last-seen time. Read-only and never
+     * includes credentials.
+     */
+    @Transactional(readOnly = true)
+    public List<AdminDtos.DoctorSummary> listDoctors() {
+        return doctorAccountRepository.findAll().stream()
+                .sorted(Comparator.comparing(
+                        DoctorAccount::getCreatedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .map(a -> new AdminDtos.DoctorSummary(
+                        a.getId(),
+                        a.getUser() != null ? a.getUser().getId() : null,
+                        a.getFullName(),
+                        a.getUser() != null ? a.getUser().getEmail() : null,
+                        a.getSpecialization(),
+                        a.getLicenseNumber(),
+                        a.getHospitalOrClinic(),
+                        a.getPhoneNumber(),
+                        a.getChamberAddress(),
+                        a.getVisitingHours(),
+                        Boolean.TRUE.equals(a.getIsAvailable()),
+                        a.getCreatedAt(),
+                        a.getLastActiveAt()))
+                .toList();
     }
 
     // =====================================================================

@@ -175,6 +175,22 @@ export interface AuditEntry {
   createdAt: string | null;
 }
 
+export interface AdminDoctorSummary {
+  id: number;
+  userId: number | null;
+  fullName: string | null;
+  email: string | null;
+  specialization: string | null;
+  licenseNumber: string | null;
+  hospitalOrClinic: string | null;
+  phoneNumber: string | null;
+  chamberAddress: string | null;
+  visitingHours: string | null;
+  available: boolean;
+  createdAt: string | null;
+  lastActiveAt: string | null;
+}
+
 export interface PatientQuery {
   search?: string;
   status?: 'ACTIVE' | 'INACTIVE' | string;
@@ -302,6 +318,12 @@ export const adminApi = {
 
   auditLogs: async (): Promise<AuditEntry[]> => {
     const res = await apiClient.get('/api/admin/audit-logs');
+    return res.data.data;
+  },
+
+  /** Every registered doctor account (admin-only). */
+  doctors: async (): Promise<AdminDoctorSummary[]> => {
+    const res = await apiClient.get('/api/admin/doctors');
     return res.data.data;
   },
 };

@@ -45,7 +45,7 @@ export const AiChatPanel: React.FC<AiChatPanelProps> = ({ onOpenDisease }) => {
 
   // Greeting on open.
   useEffect(() => {
-    setMessages([{ id: nextId(), role: 'ai', text: t.aiGreeting }]);
+    setMessages([{ id: nextId(), role: 'ai', text: t.aiGreeting, isGreeting: true }]);
     voiceService.speak(t.aiGreeting, language);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -64,7 +64,10 @@ export const AiChatPanel: React.FC<AiChatPanelProps> = ({ onOpenDisease }) => {
     setIsThinking(true);
 
     try {
-      const reply = await aiChatService.reply(text, language);
+      // Send the visible conversation (minus the greeting) so the AI keeps context
+      // and can refer back to earlier messages — a real continuous conversation.
+      const history = messages.filter((m) => !m.isGreeting);
+      const reply = await aiChatService.reply(text, language, history);
       const replyMessage: AiChatMessage = {
         id: nextId(),
         role: 'ai',

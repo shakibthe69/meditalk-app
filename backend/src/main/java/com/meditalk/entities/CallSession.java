@@ -24,9 +24,21 @@ public class CallSession {
     @JoinColumn(name = "patient_id", nullable = false)
     private User patient;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "doctor_account_id", nullable = false)
+    /**
+     * The doctor on the call, when one is involved. Null for admin-initiated
+     * support calls (see {@link #adminUserId}), which is why the column is
+     * nullable.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "doctor_account_id")
     private DoctorAccount doctorAccount;
+
+    /**
+     * The Meditalk admin on a support call, when no doctor is involved. Either
+     * this or {@link #doctorAccount} identifies the professional side.
+     */
+    @Column(name = "admin_user_id")
+    private Long adminUserId;
 
     /** User id of whoever placed the call (either the patient or the doctor). */
     @Column(nullable = false)
@@ -66,6 +78,9 @@ public class CallSession {
     public DoctorAccount getDoctorAccount() { return doctorAccount; }
     public void setDoctorAccount(DoctorAccount doctorAccount) { this.doctorAccount = doctorAccount; }
 
+    public Long getAdminUserId() { return adminUserId; }
+    public void setAdminUserId(Long adminUserId) { this.adminUserId = adminUserId; }
+
     public Long getInitiatedByUserId() { return initiatedByUserId; }
     public void setInitiatedByUserId(Long initiatedByUserId) { this.initiatedByUserId = initiatedByUserId; }
 
@@ -99,6 +114,7 @@ public class CallSession {
 
         public Builder patient(User patient) { session.setPatient(patient); return this; }
         public Builder doctorAccount(DoctorAccount doctorAccount) { session.setDoctorAccount(doctorAccount); return this; }
+        public Builder adminUserId(Long adminUserId) { session.setAdminUserId(adminUserId); return this; }
         public Builder initiatedByUserId(Long initiatedByUserId) { session.setInitiatedByUserId(initiatedByUserId); return this; }
         public Builder callType(String callType) { session.setCallType(callType); return this; }
         public Builder status(String status) { session.setStatus(status); return this; }

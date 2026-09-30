@@ -159,7 +159,7 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
         }
       }
 
-      await addMedicine({
+      const created = await addMedicine({
         name: name.trim(),
         genericName: genericName.trim() || undefined,
         dose: dose.trim(),
@@ -172,6 +172,17 @@ export const AddMedicineModal: React.FC<AddMedicineModalProps> = ({
         isActive: true,
         schedules: schedules as any,
       });
+
+      // The store swallows backend errors and returns null — never claim success then.
+      if (!created) {
+        Alert.alert(
+          language === 'bn' ? 'সংরক্ষণ ব্যর্থ' : 'Save Failed',
+          language === 'bn'
+            ? 'ওষুধটি ডাটাবেজে সংরক্ষণ করা যায়নি। ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।'
+            : 'The medicine could not be saved to the database. Check your connection and try again.'
+        );
+        return;
+      }
 
       await Promise.all([fetchMedicines(), fetchTodayLogs()]);
 

@@ -11,10 +11,16 @@ import java.util.List;
 @Repository
 public interface CallSessionRepository extends JpaRepository<CallSession, Long> {
 
-    /** Every call the user took part in, newest first — patient or doctor side. */
+    /**
+     * Every call the user took part in, newest first — patient, doctor or admin
+     * side. Admin-initiated support calls have no doctor account, hence the
+     * third branch.
+     */
     @Query("""
             SELECT c FROM CallSession c
-            WHERE c.patient.id = :userId OR c.doctorAccount.user.id = :userId
+            WHERE c.patient.id = :userId
+               OR c.doctorAccount.user.id = :userId
+               OR c.adminUserId = :userId
             ORDER BY c.createdAt DESC
             """)
     List<CallSession> findAllForUser(@Param("userId") Long userId);

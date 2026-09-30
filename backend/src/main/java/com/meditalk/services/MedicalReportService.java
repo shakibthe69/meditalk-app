@@ -21,13 +21,16 @@ public class MedicalReportService {
     private final MedicalReportRepository reportRepository;
     private final DoctorRepository doctorRepository;
     private final UserRepository userRepository;
+    private final FileStorageService fileStorageService;
 
     public MedicalReportService(MedicalReportRepository reportRepository,
                                 DoctorRepository doctorRepository,
-                                UserRepository userRepository) {
+                                UserRepository userRepository,
+                                FileStorageService fileStorageService) {
         this.reportRepository = reportRepository;
         this.doctorRepository = doctorRepository;
         this.userRepository = userRepository;
+        this.fileStorageService = fileStorageService;
     }
 
     public List<MedicalReportResponse> getReports(Long userId, String type) {
@@ -54,6 +57,8 @@ public class MedicalReportService {
             doctor = doctorRepository.findByIdAndUserId(request.getDoctorId(), userId).orElse(null);
         }
 
+        String fileUrl = normalizeFileUrl(request.getFileUrl());
+
         MedicalReport report = MedicalReport.builder()
                 .user(user)
                 .doctor(doctor)
@@ -63,10 +68,12 @@ public class MedicalReportService {
                 .testDate(request.getTestDate() != null ? request.getTestDate() : java.time.LocalDate.now())
                 .hospitalOrLab(request.getHospitalOrLab())
                 .notes(request.getNotes())
-                .fileUrl(normalizeFileUrl(request.getFileUrl()))
+                .fileUrl(fileUrl)
                 .fileType(request.getFileType() != null ? request.getFileType().toUpperCase() : "NONE")
                 .fileName(normalizeFileName(request.getFileName()))
                 .fileSizeBytes(request.getFileSizeBytes())
+                // Persist the uploaded bytes exactly as received (no re-encoding).
+                .fileData(fileStorageService.readBytesByUrl(fileUrl))
                 .build();
 
         MedicalReport saved = reportRepository.save(report);
@@ -83,13 +90,28 @@ public class MedicalReportService {
         report.setTestDate(request.getTestDate());
         report.setHospitalOrLab(request.getHospitalOrLab());
         report.setNotes(request.getNotes());
-        if (request.getFileUrl() != null) report.setFileUrl(request.getFileUrl());
+        if (request.getFileUrl() != null) {
+            String fileUrl = normalizeFileUrl(request.getFileUrl());
+            report.setFileUrl(fileUrl);
+            byte[] stored = fileStorageService.readBytesByUrl(fileUrl);
+            report.setFileData(stored != null ? stored : null);
+        }
         if (request.getFileType() != null) report.setFileType(request.getFileType().toUpperCase());
         if (request.getFileName() != null) report.setFileName(request.getFileName());
         if (request.getDoctorName() != null) report.setDoctorName(request.getDoctorName());
 
         MedicalReport updated = reportRepository.save(report);
         return mapToResponse(updated);
+    }
+
+    /**
+     * Raw stored image bytes for a report. Backs the image-download endpoint and
+     * the PDF generator so a report image survives even without the uploads folder.
+     */
+    public byte[] getReportFile(Long id, Long userId) {
+        MedicalReport report = reportRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Report not found with id: " + id));
+        return report.getFileData();
     }
 
     @Transactional

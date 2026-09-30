@@ -14,7 +14,7 @@ import {
 import { useMedicineStore } from '../../src/store';
 import { useSettingsStore } from '../../src/store/useSettingsStore';
 import { palette, typography, spacing, borderRadius } from '../../src/theme';
-import { Card, Badge, Header, AddMedicineModal } from '../../src/components';
+import { Card, Badge, Header, AddMedicineModal, MedicineDetailModal } from '../../src/components';
 import { voiceService } from '../../src/services/voice';
 import {
   Search,
@@ -34,6 +34,7 @@ export default function MedicinesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [infoMedicine, setInfoMedicine] = useState<typeof medicines[number] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -191,7 +192,12 @@ export default function MedicinesScreen() {
                   </View>
 
                   <View style={styles.medNameContainer}>
-                    <Text style={styles.medName}>{med.name}</Text>
+                    {/* Tapping the medicine name opens general Medicine Details.
+                        Existing toggle/delete behavior is unchanged. */}
+                    <TouchableOpacity
+ onPress={() => setInfoMedicine(med)} activeOpacity={0.6}>
+                      <Text style={[styles.medName, styles.medNameLink]}>{med.name}</Text>
+                    </TouchableOpacity>
                     {med.genericName && (
                       <Text style={styles.genericName}>{med.genericName}</Text>
                     )}
@@ -217,7 +223,9 @@ export default function MedicinesScreen() {
                 <View style={styles.detailsGrid}>
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>{language === 'bn' ? 'ডোজ' : 'Dosage'}</Text>
-                    <Text style={styles.detailValue}>{med.dose || (language === 'bn' ? '১ ট্যাবলেট' : '1 tablet')}</Text>
+                    <Text style={styles.detailValue}>
+                      {med.dose || (language === 'bn' ? 'উল্লেখ নেই' : 'Not specified')}
+                    </Text>
                   </View>
 
                   <View style={styles.detailItem}>
@@ -276,6 +284,14 @@ export default function MedicinesScreen() {
         visible={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSuccess={() => fetchMedicines()}
+      />
+
+      {/* Medicine Details (general online info) — additive feature */}
+      <MedicineDetailModal
+        visible={infoMedicine !== null}
+        medicineName={infoMedicine?.name ?? null}
+        medicine={infoMedicine}
+        onClose={() => setInfoMedicine(null)}
       />
     </SafeAreaView>
   );
@@ -406,6 +422,10 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     fontWeight: '700',
     color: palette.slate900,
+  },
+  medNameLink: {
+    textDecorationLine: 'underline',
+    textDecorationColor: palette.teal600,
   },
   genericName: {
     fontSize: typography.sizes.xs,

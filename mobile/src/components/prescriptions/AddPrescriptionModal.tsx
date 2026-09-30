@@ -519,16 +519,31 @@ export const AddPrescriptionModal: React.FC<AddPrescriptionModalProps> = ({
       return;
     }
 
-    // Medical safety: we never invent a name, dose or schedule to make the form valid.
-    const incomplete = medicines.find(
+    // A medicine with no name can never be stored or turned into a reminder.
+    const nameless = medicines.filter((med) => !med.name?.trim());
+    if (nameless.length > 0) {
+      Alert.alert(t.namelessMedicineAlert, t.namelessMedicineMsg);
+      return;
+    }
+
+    // Medical safety: we never invent a dose or a schedule just to make the form valid.
+    // When OCR could not read them the medicine is still saved — with the dose left
+    // unreadable and a single default reminder — after the patient confirms.
+    const needsAttention = medicines.filter(
       (med) =>
-        !med.name?.trim() ||
         !med.dose?.trim() ||
         !med.dosePattern?.trim() ||
         buildScheduleSlots(med.dosePattern, med.form, med.foodInstruction).length === 0
     );
-    if (incomplete) {
-      Alert.alert(t.missingFieldsAlert, t.missingFieldsMsg);
+
+    if (needsAttention.length > 0) {
+      const list = needsAttention
+        .map((med) => `• ${med.name?.trim() || '—'}${med.dose?.trim() ? ` (${med.dose.trim()})` : ''}`)
+        .join('\n');
+      Alert.alert(t.incompleteWarningTitle, `${t.incompleteWarningMsg}\n\n${list}`, [
+        { text: t.keepEditing, style: 'cancel' },
+        { text: t.saveAnyway, onPress: () => persistPrescription(false) },
+      ]);
       return;
     }
 

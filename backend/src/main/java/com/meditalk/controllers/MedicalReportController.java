@@ -6,6 +6,8 @@ import com.meditalk.dto.MedicalReportResponse;
 import com.meditalk.security.UserPrincipal;
 import com.meditalk.services.MedicalReportService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -44,6 +46,42 @@ public class MedicalReportController {
             @Valid @RequestBody MedicalReportRequest request) {
         MedicalReportResponse report = reportService.createReport(principal.getId(), request);
         return ResponseEntity.ok(ApiResponse.success(report, "Medical report saved successfully"));
+    }
+
+    /**
+     * Serves the report image stored in the database. The bytes are returned
+     * verbatim — no re-encoding — so the patient always sees the exact image
+     * they uploaded.
+     */
+    @GetMapping("/{id}/file")
+    public ResponseEntity<byte[]> getReportFile(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        byte[] data = reportService.getReportFile(id, principal.getId());
+        if (data == null || data.length == 0) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok()
+                .contentType(sniffMediaType(data))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .header(HttpHeaders.CACHE_CONTROL, "private, max-age=3600")
+                .body(data);
+    }
+
+    private static MediaType sniffMediaType(byte[] data) {
+        if (data.length >= 3 && (data[0] & 0xFF) == 0xFF && (data[1] & 0xFF) == 0xD8) {
+            return MediaType.IMAGE_JPEG;
+        }
+        if (data.length >= 8 && (data[0] & 0xFF) == 0x89 && data[1] == 'P' && data[2] == 'N' && data[3] == 'G') {
+            return MediaType.IMAGE_PNG;
+        }
+        if (data.length >= 4 && data[0] == 'G' && data[1] == 'I' && data[2] == 'F') {
+            return MediaType.IMAGE_GIF;
+        }
+        if (data.length >= 4 && data[0] == '%' && data[1] == 'P' && data[2] == 'D' && data[3] == 'F') {
+            return MediaType.APPLICATION_PDF;
+        }
+        return MediaType.APPLICATION_OCTET_STREAM;
     }
 
     @PutMapping("/{id}")

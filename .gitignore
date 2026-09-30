@@ -1,44 +1,37 @@
 # ---------------------------------------------------------------------------
-# Secrets — API keys must never be committed. Copy the example files instead:
-#   backend/.env.example  ->  backend/.env (or export the variables)
+# MediTalk — .gitignore
 # ---------------------------------------------------------------------------
-.env
-.env.*
-!.env.example
-**/.env
-**/.env.*
-!**/.env.example
-
-# Local service account / credential files
-*credentials*.json
-service-account*.json
-
-# ---------------------------------------------------------------------------
-# Logs
-# ---------------------------------------------------------------------------
-*.log
-logs/
-
-# ---------------------------------------------------------------------------
-# Backend build output and runtime data
-# ---------------------------------------------------------------------------
-backend/target/
-backend/uploads/
-backend/data/
-backend/*.log
+# Build / runtime artifacts
+HELP.md
+target/
 .mvn/wrapper/maven-wrapper.jar
-backend/.mvn/wrapper/maven-wrapper.jar
+.idea/
+*.iml
+.vscode/
+nbproject/private/
+build/
 
-# ---------------------------------------------------------------------------
-# Python helper scripts
-# ---------------------------------------------------------------------------
-__pycache__/
-*.pyc
+# Dependency caches
+**/node_modules
 
-# ---------------------------------------------------------------------------
-# Misc / temp files
-# ---------------------------------------------------------------------------
-tatus
-verify_*.mjs
-**/verify_*.mjs
-node_modules/
+# Local secrets (real keys!). Copy to backend/.env and fill in your own values.
+**/.env
+**/.env.local
+*.pem
+
+# Runtime data (patient records, uploads)
+backend/data/
+backend/uploads/
+backend/target/
+
+# Logs & archives (regeneratable, large)
+*.log
+*.zip
+*.mov
+*.pdf
+backend-run*.log
+backend-new.log
+
+# OS / editor junk
+.DS_Store
+Thumbs.db

@@ -75,14 +75,37 @@ public class CallService {
 
         User from = requireUser(fromUserId);
         User to = requireUser(toUserId);
-        DoctorAccount doctorAccount = resolveDoctorAccount(from, to);
-        User patient = isDoctor(from) ? to : from;
+
+        // One side is the patient; the other is the professional side — a doctor,
+        // or a Meditalk admin reaching out to support the patient.
+        User patient;
+        DoctorAccount doctorAccount = null;
+        Long adminUserId = null;
+
+        if (isPatient(from) && !isPatient(to)) {
+            patient = from;
+            if (isDoctor(to)) {
+                doctorAccount = requireDoctorAccount(to);
+            } else {
+                adminUserId = to.getId();
+            }
+        } else if (isPatient(to) && !isPatient(from)) {
+            patient = to;
+            if (isDoctor(from)) {
+                doctorAccount = requireDoctorAccount(from);
+            } else {
+                adminUserId = from.getId();
+            }
+        } else {
+            throw new BadRequestException("A call needs one patient and one doctor or admin.");
+        }
 
         String type = VIDEO.equalsIgnoreCase(callType) ? VIDEO : AUDIO;
 
         CallSession session = callSessionRepository.save(CallSession.builder()
                 .patient(patient)
                 .doctorAccount(doctorAccount)
+                .adminUserId(adminUserId)
                 .initiatedByUserId(fromUserId)
                 .callType(type)
                 .status("RINGING")
@@ -205,16 +228,20 @@ public class CallService {
         CallSession session = requireSession(callId);
 
         Long patientId = session.getPatient().getId();
-        Long doctorUserId = session.getDoctorAccount().getUser().getId();
+        Long professionalId = professionalUserId(session);
 
         Long peerId;
         if (fromUserId.equals(patientId)) {
-            peerId = doctorUserId;
-        } else if (fromUserId.equals(doctorUserId)) {
+            peerId = professionalId;
+        } else if (professionalId != null && fromUserId.equals(professionalId)) {
             peerId = patientId;
         } else {
             // Not a participant of this call — refuse to relay.
             throw new BadRequestException("You are not a participant of this call.");
+        }
+
+        if (peerId == null) {
+            throw new BadRequestException("This call has no reachable peer.");
         }
 
         Map<String, Object> body = new java.util.LinkedHashMap<>();
@@ -262,23 +289,24 @@ public class CallService {
 
     public static CallSessionResponse mapToResponse(CallSession c, Long viewerId) {
         Long patientId = c.getPatient().getId();
-        Long doctorUserId = c.getDoctorAccount().getUser().getId();
+        Long professionalId = professionalUserId(c);
+        String professionalName = professionalName(c);
         boolean viewerIsPatient = viewerId != null && viewerId.equals(patientId);
 
         return CallSessionResponse.builder()
                 .id(c.getId())
                 .patientId(patientId)
                 .patientName(c.getPatient().getFullName())
-                .doctorAccountId(c.getDoctorAccount().getId())
-                .doctorUserId(doctorUserId)
-                .doctorName(c.getDoctorAccount().getFullName())
-                .doctorSpecialization(c.getDoctorAccount().getSpecialization())
+                .doctorAccountId(c.getDoctorAccount() != null ? c.getDoctorAccount().getId() : null)
+                .doctorUserId(professionalId)
+                .doctorName(professionalName)
+                .doctorSpecialization(c.getDoctorAccount() != null ? c.getDoctorAccount().getSpecialization() : null)
                 .initiatedByUserId(c.getInitiatedByUserId())
                 .callType(c.getCallType())
                 .status(c.getStatus())
                 .roomId(c.getRoomId())
-                .peerUserId(viewerIsPatient ? doctorUserId : patientId)
-                .peerName(viewerIsPatient ? c.getDoctorAccount().getFullName() : c.getPatient().getFullName())
+                .peerUserId(viewerIsPatient ? professionalId : patientId)
+                .peerName(viewerIsPatient ? professionalName : c.getPatient().getFullName())
                 .createdAt(c.getCreatedAt())
                 .acceptedAt(c.getAcceptedAt())
                 .endedAt(c.getEndedAt())
@@ -286,31 +314,44 @@ public class CallService {
                 .build();
     }
 
+    /** The user id of the professional side: a doctor, or an admin support caller. */
+    private static Long professionalUserId(CallSession c) {
+        return c.getDoctorAccount() != null
+                ? c.getDoctorAccount().getUser().getId()
+                : c.getAdminUserId();
+    }
+
+    /** Display name of the professional side. */
+    private static String professionalName(CallSession c) {
+        return c.getDoctorAccount() != null ? c.getDoctorAccount().getFullName() : "Meditalk Admin";
+    }
+
     private void notifyBoth(CallSession session, String eventType) {
-        hub.sendToUser(session.getPatient().getId(),
-                ChatEvent.of(eventType, mapToResponse(session, session.getPatient().getId())));
-        Long doctorUserId = session.getDoctorAccount().getUser().getId();
-        hub.sendToUser(doctorUserId,
-                ChatEvent.of(eventType, mapToResponse(session, doctorUserId)));
+        Long patientId = session.getPatient().getId();
+        hub.sendToUser(patientId, ChatEvent.of(eventType, mapToResponse(session, patientId)));
+        Long professionalId = professionalUserId(session);
+        if (professionalId != null) {
+            hub.sendToUser(professionalId, ChatEvent.of(eventType, mapToResponse(session, professionalId)));
+        }
     }
 
     private Long calleeId(CallSession session) {
         return session.getInitiatedByUserId().equals(session.getPatient().getId())
-                ? session.getDoctorAccount().getUser().getId()
+                ? professionalUserId(session)
                 : session.getPatient().getId();
     }
 
-    private DoctorAccount resolveDoctorAccount(User a, User b) {
-        User doctor = isDoctor(a) ? a : (isDoctor(b) ? b : null);
-        if (doctor == null) {
-            throw new BadRequestException("A call needs one doctor and one patient.");
-        }
+    private DoctorAccount requireDoctorAccount(User doctor) {
         return doctorAccountRepository.findByUserId(doctor.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor account not found"));
     }
 
     private boolean isDoctor(User user) {
         return "ROLE_DOCTOR".equals(user.getRole());
+    }
+
+    private boolean isPatient(User user) {
+        return "ROLE_PATIENT".equals(user.getRole());
     }
 
     private User requireUser(Long id) {

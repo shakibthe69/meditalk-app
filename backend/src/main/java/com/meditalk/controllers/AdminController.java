@@ -45,6 +45,13 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(monitoring.thresholds()));
     }
 
+    // ---------- Registered doctors ----------
+
+    @GetMapping("/doctors")
+    public ResponseEntity<ApiResponse<List<AdminDtos.DoctorSummary>>> doctors() {
+        return ResponseEntity.ok(ApiResponse.success(monitoring.listDoctors()));
+    }
+
     // ---------- Patient monitoring ----------
 
     @GetMapping("/patients")

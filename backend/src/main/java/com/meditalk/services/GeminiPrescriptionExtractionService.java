@@ -34,6 +34,9 @@ public class GeminiPrescriptionExtractionService {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiPrescriptionExtractionService.class);
     private static final String GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
+    /** Host for Vertex AI / "Agent Platform" Express keys ("AQ.…"). */
+    private static final String VERTEX_EXPRESS_BASE_URL =
+            "https://aiplatform.googleapis.com/v1/publishers/google/models/";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -54,6 +57,13 @@ public class GeminiPrescriptionExtractionService {
 
     @Value("${app.gemini.timeout-seconds:60}")
     private int timeoutSeconds;
+
+    @Value("${app.gemini.base-url:https://generativelanguage.googleapis.com/v1beta/models/}")
+    private String baseUrl;
+
+    /** True when the key is a Vertex AI / Agent Platform Express key (AQ.…). */
+    @Value("${app.gemini.vertex-express:false}")
+    private boolean vertexExpress;
 
     private static final String SYSTEM_PROMPT =
             "You are a prescription OCR structuring engine for a medical record app.\n"
@@ -142,7 +152,33 @@ public class GeminiPrescriptionExtractionService {
         if (rawOcrText == null || rawOcrText.isBlank()) {
             return ExtractionResult.failure("No OCR text was available to analyze.");
         }
+        List<Map<String, Object>> parts = List.of(Map.of("text",
+                "Raw OCR text from the prescription:\n\"\"\"\n" + rawOcrText + "\n\"\"\""));
+        return runExtraction(parts);
+    }
 
+    /**
+     * Reads a prescription directly from the image (Gemini is multimodal), so
+     * scanning works with the single Gemini/Vertex credential and needs no
+     * separate OCR provider. The returned data is validated exactly like the
+     * text-based path before it can reach the database.
+     */
+    public ExtractionResult extractFromImage(byte[] imageBytes, String mimeType) {
+        if (imageBytes == null || imageBytes.length == 0) {
+            return ExtractionResult.failure("The prescription image was empty. Please try again.");
+        }
+        String type = (mimeType == null || mimeType.isBlank()) ? "image/png" : mimeType;
+        String base64 = java.util.Base64.getEncoder().encodeToString(imageBytes);
+        List<Map<String, Object>> parts = List.of(
+                Map.of("text", "Read this prescription image and return the JSON described by the schema. "
+                        + "Transcribe only what is visibly printed; never invent a medicine name, dose or time."),
+                Map.of("inline_data", Map.of("mime_type", type, "data", base64))
+        );
+        return runExtraction(parts);
+    }
+
+    /** Shared model loop for both the text and image entry points. */
+    private ExtractionResult runExtraction(List<Map<String, Object>> parts) {
         String apiKey = resolveApiKey();
         if (apiKey == null) {
             return ExtractionResult.failure(
@@ -155,7 +191,7 @@ public class GeminiPrescriptionExtractionService {
         for (String model : resolveModels()) {
             try {
                 log.info("Gemini prescription extraction started with model {}.", model);
-                String raw = callGemini(model, apiKey, rawOcrText);
+                String raw = callGemini(model, apiKey, parts);
                 if (raw == null || raw.isBlank()) {
                     previousError = "The extraction model returned an empty response.";
                     continue;
@@ -189,15 +225,13 @@ public class GeminiPrescriptionExtractionService {
                 : "Prescription AI analysis is temporarily unavailable. Please review the extracted text manually.");
     }
 
-    private String callGemini(String model, String apiKey, String rawOcrText) throws Exception {
+    private String callGemini(String model, String apiKey, List<Map<String, Object>> parts) throws Exception {
         Map<String, Object> payload = Map.of(
                 "systemInstruction", Map.of(
                         "parts", List.of(Map.of("text", SYSTEM_PROMPT))
                 ),
                 "contents", List.of(
-                        Map.of("role", "user",
-                                "parts", List.of(Map.of("text",
-                                        "Raw OCR text from the prescription:\n\"\"\"\n" + rawOcrText + "\n\"\"\"")))
+                        Map.of("role", "user", "parts", parts)
                 ),
                 "generationConfig", Map.of(
                         "temperature", 0.0,
@@ -208,17 +242,23 @@ public class GeminiPrescriptionExtractionService {
         );
 
         String jsonBody = objectMapper.writeValueAsString(payload);
-        String url = GEMINI_BASE_URL + model + ":generateContent";
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .header("Content-Type", "application/json")
-                .header("x-goog-api-key", apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                .timeout(Duration.ofSeconds(timeoutSeconds))
-                .build();
+                .timeout(Duration.ofSeconds(timeoutSeconds));
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        String url;
+        if (vertexExpress) {
+            url = VERTEX_EXPRESS_BASE_URL + model + ":generateContent?key=" + apiKey;
+        } else {
+            String host = (baseUrl != null && !baseUrl.isBlank()) ? baseUrl : GEMINI_BASE_URL;
+            url = host + model + ":generateContent";
+            requestBuilder.header("x-goog-api-key", apiKey);
+        }
+
+        HttpResponse<String> response = httpClient.send(requestBuilder.uri(URI.create(url)).build(),
+                HttpResponse.BodyHandlers.ofString());
 
         if (response.statusCode() != 200) {
             throw new GeminiHttpException(response.statusCode(), safeMessage(response.body()));
@@ -226,10 +266,10 @@ public class GeminiPrescriptionExtractionService {
 
         JsonNode root = objectMapper.readTree(response.body());
         JsonNode candidate = root.path("candidates").path(0);
-        JsonNode parts = candidate.path("content").path("parts");
-        if (parts.isArray()) {
+        JsonNode responseParts = candidate.path("content").path("parts");
+        if (responseParts.isArray()) {
             StringBuilder sb = new StringBuilder();
-            for (JsonNode part : parts) {
+            for (JsonNode part : responseParts) {
                 String text = part.path("text").asText("");
                 if (!text.isBlank()) {
                     sb.append(text);
@@ -270,7 +310,10 @@ public class GeminiPrescriptionExtractionService {
                     .forEach(models::add);
         }
         if (models.isEmpty()) {
-            models.add("gemini-3.8-flash");
+            models.add(vertexExpress ? "gemini-2.5-flash" : "gemini-3.8-flash");
+        }
+        if (vertexExpress && !models.contains("gemini-2.5-flash")) {
+            models.add("gemini-2.5-flash");
         }
         return models;
     }
@@ -283,9 +326,14 @@ public class GeminiPrescriptionExtractionService {
                         + "Please check PRESCRIPTION_GEMINI_API_KEY.";
             }
             if (status == 403) {
-                return "The prescription AI provider denied this API key's Google Cloud project "
-                        + "(PERMISSION_DENIED). Enable the Generative Language API for that project or create a "
-                        + "new key in Google AI Studio.";
+                String detail = ((GeminiHttpException) e).detail;
+                String base = vertexExpress
+                        ? "The prescription AI provider denied access. Enable the Agent Platform API "
+                                + "(aiplatform.googleapis.com) for the key's Google Cloud project."
+                        : "The prescription AI provider denied this key's Google Cloud project "
+                                + "(PERMISSION_DENIED). Enable the Generative Language API for that project or create a "
+                                + "new key in Google AI Studio.";
+                return (detail != null && !detail.isBlank()) ? base + " (" + detail + ")" : base;
             }
             if (status == 404) {
                 return "The configured prescription AI model is unavailable. Please contact support.";
@@ -318,10 +366,12 @@ public class GeminiPrescriptionExtractionService {
 
     private static class GeminiHttpException extends Exception {
         private final int status;
+        private final String detail;
 
         GeminiHttpException(int status, String message) {
             super("HTTP " + status + (message.isBlank() ? "" : " — " + message));
             this.status = status;
+            this.detail = message;
         }
     }
 }

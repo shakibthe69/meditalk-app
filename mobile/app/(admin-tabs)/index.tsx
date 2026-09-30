@@ -11,10 +11,10 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { palette, typography, spacing, borderRadius, shadows } from '../../src/theme';
-import { Card, Badge } from '../../src/components';
+import { Card, Badge, NotificationBell } from '../../src/components';
 import { adminApi, AdminDashboard } from '../../src/services/api';
 import { formatDateTime, priorityStatus, priorityLabel } from '../../src/utils/admin';
-import { Users, UserCheck, UserX, Pill, AlertTriangle, ClipboardList, LifeBuoy, ScrollText, MessageSquare } from 'lucide-react-native';
+import { Users, UserCheck, UserX, Pill, AlertTriangle, ClipboardList, LifeBuoy, ScrollText, MessageSquare, Stethoscope, ChevronRight } from 'lucide-react-native';
 
 export default function AdminDashboardScreen() {
   const router = useRouter();
@@ -71,20 +71,29 @@ export default function AdminDashboardScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Admin Panel</Text>
-          <Text style={styles.headerSub}>Patient monitoring & follow-up overview</Text>
+        <View style={styles.headerTop}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>Admin Panel</Text>
+            <Text style={styles.headerSub}>Patient monitoring & follow-up overview</Text>
+          </View>
+          <NotificationBell />
         </View>
-        <TouchableOpacity style={styles.logBtn} onPress={() => router.push('/admin-messages')} activeOpacity={0.8}>
-          <MessageSquare size={15} color={palette.teal700} />
-          <Text style={styles.logBtnText}>
-            Messages{data?.openSupportRequests ? ` (${data.openSupportRequests})` : ''}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.logBtn} onPress={() => router.push('/admin-audit')} activeOpacity={0.8}>
-          <ScrollText size={15} color={palette.teal700} />
-          <Text style={styles.logBtnText}>Log</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.logBtn} onPress={() => router.push('/admin-chat')} activeOpacity={0.8}>
+            <MessageSquare size={15} color={palette.teal700} />
+            <Text style={styles.logBtnText}>Chats</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.logBtn} onPress={() => router.push('/admin-messages')} activeOpacity={0.8}>
+            <MessageSquare size={15} color={palette.teal700} />
+            <Text style={styles.logBtnText}>
+              Messages{data?.openSupportRequests ? ` (${data.openSupportRequests})` : ''}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.logBtn} onPress={() => router.push('/admin-audit')} activeOpacity={0.8}>
+            <ScrollText size={15} color={palette.teal700} />
+            <Text style={styles.logBtnText}>Log</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -105,6 +114,21 @@ export default function AdminDashboardScreen() {
             </Card>
           ))}
         </View>
+
+        <TouchableOpacity activeOpacity={0.9} onPress={() => router.push('/admin-doctors')}>
+          <Card style={styles.doctorsCard} variant="outlined">
+            <View style={styles.doctorsIcon}>
+              <Stethoscope size={18} color={palette.teal700} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.doctorsTitle}>Registered Doctors</Text>
+              <Text style={styles.doctorsSub}>
+                View every doctor account, profile & availability
+              </Text>
+            </View>
+            <ChevronRight size={18} color={palette.slate400} />
+          </Card>
+        </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>Recent attention signals</Text>
         {data?.alerts && data.alerts.length > 0 ? (
@@ -144,8 +168,6 @@ export default function AdminDashboardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: palette.slate50 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
     paddingBottom: spacing.sm,
@@ -153,6 +175,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: palette.slate100,
     gap: spacing.sm,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
   },
   headerTitle: { fontSize: typography.sizes.lg, fontWeight: '800', color: palette.slate900 },
   headerSub: { fontSize: typography.sizes.xs, color: palette.slate500, marginTop: 2 },
@@ -195,6 +228,24 @@ const styles = StyleSheet.create({
     color: palette.slate900,
     marginTop: spacing.sm,
   },
+  doctorsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  doctorsIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: palette.teal50,
+    borderWidth: 1,
+    borderColor: palette.teal200,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  doctorsTitle: { fontSize: typography.sizes.sm, fontWeight: '800', color: palette.slate900 },
+  doctorsSub: { fontSize: typography.sizes.xs, color: palette.slate500, marginTop: 1 },
   alertCard: { padding: spacing.md, gap: spacing.xs },
   alertHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   alertTime: { fontSize: typography.sizes.xs, color: palette.slate400 },

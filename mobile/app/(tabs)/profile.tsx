@@ -37,6 +37,7 @@ import {
   Lock,
   LogOut,
   ChevronRight,
+  MessageSquare,
   Languages,
   Volume2,
   VolumeX,
@@ -357,6 +358,29 @@ export default function ProfileScreen() {
             <View style={styles.menuTextContainer}>
               <Text style={styles.menuTitle}>{language === 'bn' ? 'কেয়ার টিমে যোগাযোগ' : 'Contact Care Team'}</Text>
               <Text style={styles.menuSubtitle}>{language === 'bn' ? 'অ্যাডমিনের কাছে সহায়তা চান' : 'Send a help request to the admin'}</Text>
+            </View>
+            <ChevronRight size={18} color={palette.slate400} />
+          </TouchableOpacity>
+
+          <View style={styles.menuDivider} />
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            activeOpacity={0.7}
+            onPress={() => router.push('/admin-support')}
+          >
+            <View style={[styles.menuIconCircle, { backgroundColor: palette.blue50 }]}>
+              <MessageSquare size={20} color={palette.blue600} />
+            </View>
+            <View style={styles.menuTextContainer}>
+              <Text style={styles.menuTitle}>
+                {language === 'bn' ? 'অ্যাডমিনের সাথে চ্যাট' : 'Chat with Admin'}
+              </Text>
+              <Text style={styles.menuSubtitle}>
+                {language === 'bn'
+                  ? 'Meditalk সাপোর্টের সাথে সরাসরি কথা বলুন'
+                  : 'Talk directly with Meditalk support'}
+              </Text>
             </View>
             <ChevronRight size={18} color={palette.slate400} />
           </TouchableOpacity>

@@ -289,11 +289,12 @@ export default function DoctorMessagesScreen() {
           <History size={16} color={palette.teal700} />
           <Text style={styles.historyBtnText}>{t.callHistory}</Text>
         </TouchableOpacity>
-      </View>            {isLoading ? (
-              <View style={styles.centerWrap}>
-                <ActivityIndicator size="large" color={palette.teal600} />
-              </View>
-            ) : threads.length === 0 ? (
+      </View>
+      {isLoading ? (
+        <View style={styles.centerWrap}>
+          <ActivityIndicator size="large" color={palette.teal600} />
+        </View>
+      ) : threads.length === 0 ? (
         <View style={styles.centerWrap}>
           <MessageCircle size={44} color={palette.slate300} />
           <Text style={styles.emptyTitle}>No patient conversations yet</Text>

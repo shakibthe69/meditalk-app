@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
+import java.awt.color.ColorSpace;
 import java.awt.geom.AffineTransform;
 import java.awt.image.*;
 import java.io.ByteArrayInputStream;
@@ -235,9 +236,14 @@ public class ImagePreprocessingService {
                 return image;
         }
 
-        BufferedImage result = new BufferedImage(targetWidth, targetHeight, image.getType() == 0 ? BufferedImage.TYPE_INT_RGB : image.getType());
+        // Always render into an RGB buffer: Java2D does not reliably draw into a
+        // TYPE_BYTE_GRAY raster, which produced blank/black scans for rotated
+        // photos. A white fill also avoids black wedges at the rotated edges.
+        BufferedImage result = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = result.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g.setColor(Color.WHITE);
+        g.fillRect(0, 0, targetWidth, targetHeight);
         g.drawImage(image, transform, null);
         g.dispose();
         return result;
@@ -259,26 +265,46 @@ public class ImagePreprocessingService {
             newWidth = (int) Math.round(targetMaxDimension * ratio);
         }
 
-        BufferedImage resized = new BufferedImage(newWidth, newHeight, original.getType() == 0 ? BufferedImage.TYPE_INT_RGB : original.getType());
+        BufferedImage resized = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
         Graphics2D g2d = resized.createGraphics();
         g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2d.setColor(Color.WHITE);
+        g2d.fillRect(0, 0, newWidth, newHeight);
         g2d.drawImage(original, 0, 0, newWidth, newHeight, null);
         g2d.dispose();
         return resized;
     }
 
+    /**
+     * Converts to true 8-bit grayscale using {@link ColorConvertOp}, which is the
+     * only reliable Java2D path — drawing into a TYPE_BYTE_GRAY Graphics2D can
+     * silently produce a blank image on some JDKs.
+     */
     private BufferedImage toGrayscale(BufferedImage colorImage) {
-        BufferedImage grayImage = new BufferedImage(colorImage.getWidth(), colorImage.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
-        Graphics2D g = grayImage.createGraphics();
-        g.drawImage(colorImage, 0, 0, null);
-        g.dispose();
+        BufferedImage source = colorImage;
+        if (source.getType() != BufferedImage.TYPE_INT_RGB) {
+            BufferedImage rgb = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = rgb.createGraphics();
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, source.getWidth(), source.getHeight());
+            g.drawImage(source, 0, 0, null);
+            g.dispose();
+            source = rgb;
+        }
+
+        BufferedImage grayImage = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
+        ColorConvertOp converter = new ColorConvertOp(ColorSpace.getInstance(ColorSpace.CS_GRAY), null);
+        converter.filter(source, grayImage);
         return grayImage;
     }
 
     private BufferedImage enhanceContrast(BufferedImage image) {
         BufferedImage gray = (image.getType() == BufferedImage.TYPE_BYTE_GRAY) ? image : toGrayscale(image);
+        if (!(gray.getRaster().getDataBuffer() instanceof DataBufferByte)) {
+            gray = toGrayscale(gray);
+        }
         int width = gray.getWidth();
         int height = gray.getHeight();
         byte[] pixels = ((DataBufferByte) gray.getRaster().getDataBuffer()).getData();
